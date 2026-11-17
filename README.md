@@ -6,15 +6,15 @@ An English translation of [Happy-LLM](https://github.com/datawhalechina/happy-ll
 
 | Chapter | File | Topic |
 |---|---|---|
-| 1 | [`chapter1-nlp-fundamental-concepts-en.md`](chapter1-nlp-fundamental-concepts-en.md) | NLP fundamental concepts |
-| 2 | [`chapter2-transformer-architecture-en.md`](chapter2-transformer-architecture-en.md) | Transformer architecture |
-| 3 | [`chapter3-pre-trained-language-models-en.md`](chapter3-pre-trained-language-models-en.md) | Pre-trained language models |
-| 4 | [`chapter4-large-language-models-en.md`](chapter4-large-language-models-en.md) | Large language models |
-| 5 | [`chapter5-build-your-own-large-model-en.md`](chapter5-build-your-own-large-model-en.md) | Build your own large model |
-| 6 | [`chapter6-training-llms-in-practice-en.md`](chapter6-training-llms-in-practice-en.md) | Training LLMs in practice |
-| 6+ | [`chapter6-preference-alignment-wip-en.md`](chapter6-preference-alignment-wip-en.md) | Preference alignment supplement (WIP in the original) |
-| 7 | [`chapter7-llm-applications-en.md`](chapter7-llm-applications-en.md) | LLM applications |
-| 8 | [`chapter8-llm-reinforcement-learning-en.md`](chapter8-llm-reinforcement-learning-en.md) | LLM reinforcement learning |
+| 1 | [`site/src/content/docs/chapter1-nlp-fundamental-concepts-en.md`](site/src/content/docs/chapter1-nlp-fundamental-concepts-en.md) | NLP fundamental concepts |
+| 2 | [`site/src/content/docs/chapter2-transformer-architecture-en.md`](site/src/content/docs/chapter2-transformer-architecture-en.md) | Transformer architecture |
+| 3 | [`site/src/content/docs/chapter3-pre-trained-language-models-en.md`](site/src/content/docs/chapter3-pre-trained-language-models-en.md) | Pre-trained language models |
+| 4 | [`site/src/content/docs/chapter4-large-language-models-en.md`](site/src/content/docs/chapter4-large-language-models-en.md) | Large language models |
+| 5 | [`site/src/content/docs/chapter5-build-your-own-large-model-en.md`](site/src/content/docs/chapter5-build-your-own-large-model-en.md) | Build your own large model |
+| 6 | [`site/src/content/docs/chapter6-training-llms-in-practice-en.md`](site/src/content/docs/chapter6-training-llms-in-practice-en.md) | Training LLMs in practice |
+| 6+ | [`site/src/content/docs/chapter6-preference-alignment-wip-en.md`](site/src/content/docs/chapter6-preference-alignment-wip-en.md) | Preference alignment supplement (WIP in the original) |
+| 7 | [`site/src/content/docs/chapter7-llm-applications-en.md`](site/src/content/docs/chapter7-llm-applications-en.md) | LLM applications |
+| 8 | [`site/src/content/docs/chapter8-llm-reinforcement-learning-en.md`](site/src/content/docs/chapter8-llm-reinforcement-learning-en.md) | LLM reinforcement learning |
 
 ## Website
 
