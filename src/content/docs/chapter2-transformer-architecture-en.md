@@ -11,21 +11,21 @@ As NLP advances from statistical machine learning toward deep learning, text rep
 - Feedforward Neural Network (FNN), i.e., data flows unidirectionally from the input layer to the output layer with no recurrent structure; layers pass information to each other through full connections or specific schemes. The Multi-Layer Perceptron (MLP) is the most common form, where the neurons of each layer are fully connected to every neuron of the layers above and below, as shown in Figure 2.1:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/1-0.webp)
+  <img src="/images/2-figures/1-0.webp" alt="Figure 2.1 Fully Connected Neural Network" width="1280" height="547" loading="lazy" decoding="async" />
   <p>Figure 2.1 Fully Connected Neural Network</p>
 </div>
 
 - Convolutional Neural Network (CNN), i.e., convolutional layers—whose number of trainable parameters is far smaller than that of a fully connected neural network—are used for feature extraction and learning, as shown in Figure 2.2:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/1-1.webp)
+  <img src="/images/2-figures/1-1.webp" alt="Figure 2.2 Convolutional Neural Network" width="1280" height="489" loading="lazy" decoding="async" />
   <p>Figure 2.2 Convolutional Neural Network</p>
 </div>
 
 - Recurrent Neural Network (RNN), a network that can use historical information as input and contains loops and self-repetition, as shown in Figure 2.3:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/1-2.webp)
+  <img src="/images/2-figures/1-2.webp" alt="Figure 2.3 Recurrent Neural Network" width="1280" height="809" loading="lazy" decoding="async" />
   <p>Figure 2.3 Recurrent Neural Network</p>
 </div>
 
@@ -224,7 +224,7 @@ The attention mechanism can achieve parallelization and fit long-term dependenci
 In the original paper, the authors also confirmed experimentally that, in multi-head attention computation, each different attention head can fit different information in the sentence, as shown in Figure 2.4:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/1-3.webp)
+  <img src="/images/2-figures/1-3.webp" alt="Figure 2.4 Multi-Head Attention Mechanism" width="586" height="597" loading="lazy" decoding="async" />
   <p>Figure 2.4 Multi-Head Attention Mechanism</p>
 </div>
 
@@ -346,7 +346,7 @@ For Seq2Seq tasks, the general approach is to encode the natural language sequen
 The Encoder in the Transformer performs the encoding process described above; the Decoder performs the decoding process. The Transformer structure is shown in Figure 2.5:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/2-0.webp)
+  <img src="/images/2-figures/2-0.webp" alt="Figure 2.5 Encoder-Decoder Structure" width="649" height="819" loading="lazy" decoding="async" />
   <p>Figure 2.5 Encoder-Decoder Structure</p>
 </div>
 
@@ -751,7 +751,7 @@ This shows that this encoding can still represent relative position.
 The encoding results above are shown in Figure 2.6:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/3-0.webp)
+  <img src="/images/2-figures/3-0.webp" alt="Figure 2.6 Encoding Results" width="1356" height="626" loading="lazy" decoding="async" />
   <p>Figure 2.6 Encoding Results</p>
 </div>
 
@@ -792,7 +792,7 @@ class PositionalEncoding(nn.Module):
 Concatenating all of the components above according to the Transformer structure in the figure below yields a complete Transformer model, as shown in Figure 2.7:
 
 <div align="center">
-  ![Figure caption](/images/2-figures/3-1.webp)
+  <img src="/images/2-figures/3-1.webp" alt="Figure 2.7 Transformer Model Structure" width="636" height="847" loading="lazy" decoding="async" />
   <p>Figure 2.7 Transformer Model Structure</p>
 </div>
 
