@@ -1,0 +1,16 @@
+---
+// Starlight's default <head> emits the charset meta, viewport, and theme script.
+// Render it, then add our font preload alongside it.
+import Default from '@astrojs/starlight/components/Head.astro';
+import woff2 from '@fontsource-variable/mulish/files/mulish-latin-wght-normal.woff2?url';
+---
+
+<Default><slot /></Default>
+
+<link
+	rel="preload"
+	href={woff2}
+	as="font"
+	type="font/woff2"
+	crossorigin="anonymous"
+/>

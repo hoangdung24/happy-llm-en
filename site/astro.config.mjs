@@ -1,13 +1,24 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://happy-llm-en.hoangdung24.workers.dev',
+	build: {
+		// Inline small render-blocking stylesheets to cut request round-trips.
+		inlineStylesheets: 'auto',
+	},
 	integrations: [
 		starlight({
 			title: 'Happy-LLM',
 			description: 'English translation of the Happy-LLM tutorial (datawhalechina/happy-llm)',
+			customCss: ['./src/styles/custom.css'],
+			components: {
+				// Injects the font preload <link> into every page's <head>.
+				Head: './src/components/Head.astro',
+			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/datawhalechina/happy-llm' }],
 			sidebar: [
 				{
@@ -26,5 +37,6 @@ export default defineConfig({
 				},
 			],
 		}),
+		sitemap(),
 	],
 });

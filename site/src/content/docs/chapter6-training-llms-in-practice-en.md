@@ -21,7 +21,7 @@ Therefore, in this chapter, we introduce Transformers, the mainstream training f
 Transformers is an NLP framework developed by Hugging Face. Through modular design, it provides unified support for hundreds of mainstream model architectures including BERT, GPT, LLaMA, T5, and ViT. With Transformers, developers no longer need to repeatedly implement basic network structures; any pretrained model can be loaded with a single click via the AutoModel class. Figure 6.1 shows the homepage of the Hugging Face Transformers course:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-1.png" alt="alt text" width="90%">
+    <img src="/images/6-images/1-1.webp" alt="Figure 6.1 Hugging Face Transformers" width="1544" height="678" loading="lazy" decoding="async" />
     <p>Figure 6.1 Hugging Face Transformers</p>
 </div>
 
@@ -30,7 +30,7 @@ Meanwhile, the Trainer class built into the framework encapsulates the core logi
 Even more important for NLP researchers in the LLM era, HuggingFace built its huge AI community on top of the Transformers framework, opening up hundreds of millions of pretrained model parameters and 250,000+ datasets of various types. Through multiple frameworks such as Transformers, Datasets, and Evaluate, it integrates pretrained models, datasets, and evaluation functions, helping developers conveniently use any pretrained model and easily develop and deploy their own models on the basis of open-source models and datasets.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-2.png" alt="alt text" width="90%">
+    <img src="/images/6-images/1-2.webp" alt="Figure 6.2 The Hugging Face Transformers model community" width="1600" height="831" loading="lazy" decoding="async" />
     <p>Figure 6.2 The Hugging Face Transformers model community</p>
 </div>
 
@@ -41,14 +41,14 @@ In the LLM era, adjusting model architectures and re-pretraining are becoming le
 We can use the AutoModel class from transformers to directly initialize an already-implemented model. For any pretrained model, its parameters contain the model's configuration information. If you want to train an LLM from scratch, you can initialize it directly using an existing model architecture. Here, we use the model architecture of [Qwen-2.5-1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B/tree/main) as an example:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-3.png" alt="alt text" width="90%">
+    <img src="/images/6-images/1-3.webp" alt="Figure 6.3 Qwen-2.5-1.5B" width="1600" height="818" loading="lazy" decoding="async" />
     <p>Figure 6.3 Qwen-2.5-1.5B</p>
 </div>
 
 This page shows the Qwen-2.5-1.5B model parameters in the HuggingFace community. The `config.json` file contains the model's configuration information, including the model architecture, hidden size, number of layers, etc., as shown in Figure 6.4:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-4.png" alt="alt text" width="90%">
+    <img src="/images/6-images/1-4.webp" alt="Figure 6.4 The Qwen-2.5-1.5B config.json file" width="1600" height="818" loading="lazy" decoding="async" />
     <p>Figure 6.4 The Qwen-2.5-1.5B config.json file</p>
 </div>
 
@@ -65,7 +65,7 @@ os.system('huggingface-cli download --resume-download Qwen/Qwen2.5-1.5B --local-
 As shown in Figure 6.5, "Qwen/Qwen2.5-1.5B" here is the identifier of the model to download; for other models, you can directly copy the model name from HuggingFace:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-5.png" alt="alt text" width="90%">
+    <img src="/images/6-images/1-5.webp" alt="Figure 6.5 Model download identifier" width="1600" height="841" loading="lazy" decoding="async" />
     <p>Figure 6.5 Model download identifier</p>
 </div>
 
@@ -93,7 +93,7 @@ model = AutoModelForCausalLM.from_config(config,trust_remote_code=True)
 Since LLMs generally use the CausalLM architecture, we use the AutoModelForCausalLM class for loading here. For classification-task training, you can use the AutoModelForSequenceClassification class instead. Inspecting this model, Figure 6.6 shows that its architecture matches the defined configuration file:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-6.png" alt="alt text" width="70%">
+    <img src="/images/6-images/1-6.webp" alt="Figure 6.6 Model architecture output" width="913" height="698" loading="lazy" decoding="async" />
     <p>Figure 6.6 Model architecture output</p>
 </div>
 
@@ -136,7 +136,7 @@ ds["train"][0]
 ```
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/1-7.png" alt="alt text" width="100%">
+    <img src="/images/6-images/1-7.webp" alt="Figure 6.7 Dataset preview" width="1600" height="374" loading="lazy" decoding="async" />
     <p>Figure 6.7 Dataset preview</p>
 </div>
 
@@ -796,7 +796,7 @@ To address the cost of full fine-tuning, there are currently two main solutions:
 Specifically, it inserts parameters for downstream tasks, i.e., Adapter modules, into each layer of the pretrained model; during fine-tuning, the model body is frozen and only the task-specific parameters are trained, as shown in Figure 6.8.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/3-1.png" alt="alt text" width="90%">
+    <img src="/images/6-images/3-1.webp" alt="Figure 6.8 Adapt Tuning" width="1444" height="1046" loading="lazy" decoding="async" />
     <p>Figure 6.8 Adapt Tuning</p>
 </div>
 
@@ -848,7 +848,7 @@ At the start of training, $A$ is initialized with random Gaussian initialization
 The training idea is shown in Figure 6.9:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/6-images/3-2.jpg" alt="alt text" width="90%">
+    <img src="/images/6-images/3-2.webp" alt="Figure 6.9 LoRA" width="1057" height="852" loading="lazy" decoding="async" />
     <p>Figure 6.9 LoRA</p>
 </div>
 

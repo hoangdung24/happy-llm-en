@@ -50,7 +50,7 @@ The evaluation of large models is not limited to using specific datasets. Many i
 The Open LLM Leaderboard is an open leaderboard provided by Hugging Face. It aggregates the evaluation results of multiple open-source large models, helping users understand the performance of different models on various tasks. The leaderboard evaluates model performance through multiple standardized test sets and reflects the latest technological progress through continuous updates, providing researchers and developers with a high-value comparison reference, as shown in Figure 7.1.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-1-Open%20LLM%20Leaderboard.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-1-Open-LLM-Leaderboard.webp" alt="Figure 7.1 Open LLM Leaderboard" width="1119" height="1071" loading="lazy" decoding="async" />
     <p>Figure 7.1 Open LLM Leaderboard</p>
 </div>
 
@@ -59,7 +59,7 @@ The Open LLM Leaderboard is an open leaderboard provided by Hugging Face. It agg
 The chatbot evaluation leaderboard provided by LMSYS showcases the abilities of various large models in dialogue tasks through multi-dimensional evaluation. The leaderboard evaluates dialogue quality through real user-model interactions, focusing on the model's natural language generation ability, contextual understanding ability, and user satisfaction. It is currently an important tool for evaluating chatbot performance, as shown in Figure 7.2.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-1-lmsys%20Chatbot%20Arena%20Leaderboard.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-1-lmsys-Chatbot-Arena-Leaderboard.webp" alt="Figure 7.2 Lmsys Chatbot Arena Leaderboard" width="1119" height="1266" loading="lazy" decoding="async" />
     <p>Figure 7.2 Lmsys Chatbot Arena Leaderboard</p>
 </div>
 
@@ -68,7 +68,7 @@ The chatbot evaluation leaderboard provided by LMSYS showcases the abilities of 
 OpenCompass is a domestic (Chinese) evaluation leaderboard that evaluates the performance of large models across multiple languages and tasks, providing a reference for applications specific to the Chinese market. The leaderboard combines tests of Chinese language understanding and multilingual capabilities to meet localization needs, with particular attention to the accuracy, robustness, and adaptability of large models in Chinese contexts, providing an important reference for domestic enterprises and researchers in selecting suitable models.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-1-opencompass.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-1-opencompass.webp" alt="Figure 7.3 OpenCompass" width="923" height="984" loading="lazy" decoding="async" />
     <p>Figure 7.3 OpenCompass</p>
 </div>
 
@@ -87,7 +87,7 @@ In addition, there are large model evaluation leaderboards targeting specific ta
 - Medical Leaderboard: Based on the MedBench evaluation set, it assesses the performance of large language models in areas such as medical knowledge Q&A and safety and ethics understanding. Provided by the Shanghai Artificial Intelligence Laboratory.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-1-垂直领域榜单.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-1-vertical-domain-leaderboard.webp" alt="Figure 7.4 Vertical Domain Leaderboards" width="1070" height="813" loading="lazy" decoding="async" />
     <p>Figure 7.4 Vertical Domain Leaderboards</p>
 </div>
 
@@ -121,7 +121,7 @@ What are the basic components of RAG?
 These are all the module contents of TinyRAG, as shown in Figure 7.5.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-2-tinyrag.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-2-tinyrag.webp" alt="Figure 7.5 TinyRAG Project Structure" width="1600" height="739" loading="lazy" decoding="async" />
     <p>Figure 7.5 TinyRAG Project Structure</p>
 </div>
 
@@ -134,7 +134,7 @@ Next, let us review what the RAG pipeline looks like:
 The flowchart is shown in Figure 7.6 below. Image source: ***[Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/pdf/2312.10997.pdf)***
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-2-rag.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-2-rag.webp" alt="Figure 7.6 RAG Flowchart" width="1561" height="910" loading="lazy" decoding="async" />
     <p>Figure 7.6 RAG Flowchart</p>
 </div>
 
@@ -511,7 +511,7 @@ Simply put, a large model Agent is a system with an LLM as its core "brain", end
 A traditional LLM is like a knowledgeable librarian who can only talk on paper, while an LLM Agent is more like an all-around personal assistant who not only knows a lot but can also run errands and get things done, and can even proactively think of the best solution.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-3-Agent工作原理.png" alt="alt text" width="90%">
+    <img src="/images/7-images/7-3-agent-how-it-works.webp" alt="Figure 7.7 How an Agent Works" width="1600" height="1375" loading="lazy" decoding="async" />
     <p>Figure 7.7 How an Agent Works</p>
 </div>
 
@@ -548,7 +548,7 @@ We will build a Tiny-Agent based on the `openai` library and its `tool_calls` fu
 The final implementation effect is shown in Figure 7.8:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-3-tinyagent-example.png" style="width: 100%;">
+    <img src="/images/7-images/7-3-tinyagent-example.webp" alt="Figure 7.5 Tiny-Agent example output" width="1600" height="368" loading="lazy" decoding="async" />
     <p>Figure 7.8 Effect Illustration</p>
 </div>
 
@@ -742,7 +742,7 @@ The Agent's workflow is as follows:
 As shown in Figure 7.9, the Agent tool-calling workflow:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-3-Tiny_Agent.jpg" alt="alt text" width="80%">
+    <img src="/images/7-images/7-3-Tiny_Agent.webp" alt="Figure 7.9 Agent Workflow" width="1524" height="1088" loading="lazy" decoding="async" />
     <p>Figure 7.9 Agent Workflow</p>
 </div>
 
@@ -801,7 +801,7 @@ User: exit
 In addition, we have also prepared a Streamlit app for demonstration, which can run locally to showcase the Agent's capabilities. Run it with `streamlit run web_demo.py`. The following shows the Agent's running effect.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/7-images/7-3-streamlit-demo.png" alt="alt text" width="80%">
+    <img src="/images/7-images/7-3-streamlit-demo.webp" alt="Figure 7.10 Streamlit Demo" width="1562" height="1494" loading="lazy" decoding="async" />
     <p>Figure 7.10 Streamlit Demo</p>
 </div>
 

@@ -17,7 +17,7 @@ Now, we move on to the core part—the basic principles of reinforcement learnin
 - Value Function: this is an evaluation tool for a policy, aiming to predict the total reward that can be obtained in the long run starting from the current state. The value function helps the agent consider not only the reward of the current step, but also better weigh short-term and long-term gains.
 - Model: in some reinforcement learning systems, we build a model of the environment to help the agent foresee the outcomes of its actions. This is very useful in many complex computation scenarios.
 
-![Reinforcement Learning](./images/7.1-1.png)
+<img src="/images/7.1-1.webp" alt="Reinforcement Learning" width="798" height="514" loading="lazy" decoding="async" />
 
 These elements work together to help the agent learn the best action strategy through continuous trial and error in a virtual environment. In reinforcement learning, the agent is the subject of learning and decision-making. It interacts with the environment through the following steps:
 

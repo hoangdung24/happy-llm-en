@@ -98,7 +98,7 @@ Beyond the points above, LLMs have many more characteristics worth studying, suc
 In the previous section, we analyzed the definition of LLMs and their uniquely powerful abilities: through larger-scale parameters and massive training corpora, they acquire emergent abilities far beyond those of traditional pre-trained models, exhibiting powerful in-context learning, instruction following, and step-by-step reasoning, bringing a brand-new transformation to the NLP field. So, through what steps can we train an LLM with emergent abilities? And what is the difference between training an LLM and training a traditional pre-trained model?
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/4-figures/2-0.jpg" alt="alt text" width="90%">
+    <img src="/images/4-figures/2-0.webp" alt="Figure 4.1 The three stages of training an LLM" width="727" height="392" loading="lazy" decoding="async" />
     <p>Figure 4.1 The three stages of training an LLM</p>
 </div>
 
@@ -130,7 +130,7 @@ Such enormous model parameters and pre-training data mean that the compute resou
 For precisely this reason, distributed training frameworks have become an indispensable component of LLM training. The core ideas of distributed training frameworks are data parallelism and model parallelism. Data parallelism applies when the size of the model being trained can be accommodated by a single GPU's memory, but since increasing the training batch_size increases GPU memory overhead, a large batch_size cannot be used for training; meanwhile, the amount of training data is so large that training on a single GPU would take an unacceptably long time.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/4-figures/2-1.jpg" alt="alt text" width="60%">
+    <img src="/images/4-figures/2-1.webp" alt="Figure 4.2 Model parallelism and data parallelism" width="581" height="561" loading="lazy" decoding="async" />
     <p>Figure 4.2 Model parallelism and data parallelism</p>
 </div>
 
@@ -139,7 +139,7 @@ Therefore, as shown in Figure 4.2, model instances can be run on different GPUs 
 However, when an LLM scales up to tens of billions of parameters, a single GPU's memory often cannot hold the complete model parameters. As shown in Figure 4.3, in this case the model can be split across multiple GPUs, with each GPU holding different layers or different parts, thereby achieving model parallelism.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/4-figures/2-2.jpg" alt="alt text" width="30%">
+    <img src="/images/4-figures/2-2.webp" alt="Figure 4.3 Model parallelism" width="271" height="532" loading="lazy" decoding="async" />
     <p>Figure 4.3 Model parallelism</p>
 </div>
 
@@ -301,7 +301,7 @@ RLHF stands for Reinforcement Learning from Human Feedback; it is the key step o
 As shown in Figure 4.4, ChatGPT's technical report divides alignment into three stages; the latter two stages — training the RM and PPO training — are the steps of RLHF:
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/4-figures/2-3.png" alt="alt text" width="100%">
+    <img src="/images/4-figures/2-3.webp" alt="Figure 4.4 The three stages of ChatGPT training" width="788" height="479" loading="lazy" decoding="async" />
     <p>Figure 4.4 The three stages of ChatGPT training</p>
 </div>
 
@@ -335,7 +335,7 @@ After the RM training is completed, the PPO algorithm can be used for reinforcem
 In the concrete PPO training process, there are four models. As shown in Figure 4.5, two LLMs and two RMs. The two LLMs are the actor model, which is fine-tuned and whose parameters are updated, and the ref model, whose parameters are not updated; both are initialized from the LLM after SFT. The two RMs are the critic model, whose parameters are updated, and the reward model, whose parameters are not updated; both are initialized from the RM trained in the previous step.
 
 <div align='center'>
-    <img src="https://raw.githubusercontent.com/datawhalechina/happy-llm/main/docs/images/4-figures/2-4.jpg" alt="alt text" width="100%">
+    <img src="/images/4-figures/2-4.webp" alt="Figure 4.5 The PPO training process" width="701" height="385" loading="lazy" decoding="async" />
     <p>Figure 4.5 The PPO training process</p>
 </div>
 
