@@ -28,7 +28,7 @@ Next, we will take a deep dive into BERT from three aspects: model architecture,
 BERT's model architecture is formed by taking the Encoder part of the Transformer and stacking it. Its main structure is shown in Figure 3.1:
 
 <div align="center">
-  <img src="/images/3-figures/1-0.webp" alt="图片描述" width="1244" height="836" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-0.webp" alt="Figure 3.1 BERT model structure" width="1244" height="836" loading="lazy" decoding="async" />
   <p>Figure 3.1 BERT model structure</p>
 </div>
 
@@ -37,7 +37,7 @@ BERT is a pre-trained model built for NLU tasks. Its input is generally a text s
 The model as a whole consists of Embedding, Encoder, plus prediction_heads:
 
 <div align="center">
-  <img src="/images/3-figures/1-1.webp" alt="图片描述" width="607" height="616" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-1.webp" alt="Figure 3.2 Simplified structure of the BERT model" width="607" height="616" loading="lazy" decoding="async" />
   <p>Figure 3.2 Simplified structure of the BERT model</p>
 </div>
 
@@ -49,21 +49,21 @@ The input text sequence first goes through the tokenizer (each model's tokenizer
 prediction_heads is essentially a linear layer plus an activation function. Generally, the output dimension of the last linear layer equals the number of classes of the task, as shown in Figure 3.3:
 
 <div align="center">
-  <img src="/images/3-figures/1-5.webp" alt="图片描述" width="127" height="245" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-5.webp" alt="Figure 3.3 Structure of prediction_heads" width="127" height="245" loading="lazy" decoding="async" />
   <p>Figure 3.3 Structure of prediction_heads</p>
 </div>
 
 Each Encoder Layer is a layer whose structure is similar to the Encoder Layer in the Transformer, as shown in Figure 3.4:
 
 <div align="center">
-  <img src="/images/3-figures/1-2.webp" alt="图片描述" width="346" height="590" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-2.webp" alt="Figure 3.4 Encoder Layer structure" width="346" height="590" loading="lazy" decoding="async" />
   <p>Figure 3.4 Encoder Layer structure</p>
 </div>
 
 As shown in Figure 3.5, the hidden_states that have been mapped by the Embedding layer enter the core attention mechanism, then are added to the original input via a residual connection, and then pass through an Intermediate layer to obtain the final output. The Intermediate layer is BERT's special name; it is actually just a linear layer plus an activation function:
 
 <div align="center">
-  <img src="/images/3-figures/1-3.webp" alt="图片描述" width="334" height="305" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-3.webp" alt="Figure 3.5 Intermediate structure" width="334" height="305" loading="lazy" decoding="async" />
   <p>Figure 3.5 Intermediate structure</p>
 </div>
 
@@ -76,7 +76,7 @@ The core idea of GELU is to introduce the idea of stochastic regularization into
 BERT's attention mechanism is almost identical to the self-attention mechanism of the Transformer's Encoder, but BERT integrates relative position encoding into the attention mechanism, treating the relative position encoding as trainable weight parameters as well, as shown in Figure 3.6:
 
 <div align="center">
-  <img src="/images/3-figures/1-4.webp" alt="图片描述" width="383" height="620" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/1-4.webp" alt="Figure 3.6 Structure of BERT&#x27;s attention mechanism" width="383" height="620" loading="lazy" decoding="async" />
   <p>Figure 3.6 Structure of BERT's attention mechanism</p>
 </div>
 
@@ -236,14 +236,14 @@ T5's unification idea represents different NLP tasks, such as text classificatio
 BERT adopted the Encoder-Only structure, containing only the encoder part; GPT adopted the Decoder-Only structure, containing only the decoder part. T5 adopts the Encoder-Decoder structure, where both the encoder and the decoder are designed based on the Transformer architecture. The encoder is used to process the input text, and the decoder is used to generate the output text. The encoder and the decoder interact through the attention mechanism, thereby realizing the conversion from input text to output text. Its main structure is shown in Figure 3.7:
 
 <div align="center">
-  <img src="/images/3-figures/2-1.webp" alt="图片描述" width="1600" height="1744" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/2-1.webp" alt="Figure 3.7 Detailed structure of the T5 model" width="1600" height="1744" loading="lazy" decoding="async" />
   <p>Figure 3.7 Detailed structure of the T5 model</p>
 </div>
 
 As shown in Figure 3.8, viewed as a whole, T5's model structure includes the Tokenizer part and the Transformer part. The Tokenizer part is mainly responsible for converting the input text into an input format acceptable to the model, including operations such as tokenization and encoding. The Transformer part is further divided into EncoderLayers and DecoderLayers, which are each composed of small Blocks; each Block contains the multi-head attention mechanism, a feed-forward neural network, and a Norm layer. The Block design makes the model more flexible; like Lego, the number and layers of Blocks can be adjusted according to the complexity of the task and the size of the dataset.
 
 <div align="center">
-  <img src="/images/3-figures/2-2.webp" alt="图片描述" width="1600" height="1452" loading="lazy" decoding="async" />
+  <img src="/images/3-figures/2-2.webp" alt="Figure 3.8 Overall structure of the T5 model" width="1600" height="1452" loading="lazy" decoding="async" />
   <p>Figure 3.8 Overall structure of the T5 model</p>
 </div>
 
@@ -465,8 +465,8 @@ GLM realizes the combination of the MLM and CLM ideas by optimizing an autoregre
 By combining the MLM and CLM ideas, it both fits generation-type tasks that produce token by token, and forces the model to learn the implicit relations of the input text from both front and back directions, thereby fitting understanding-type tasks. The GLM model produced with the GLM pre-training task demonstrated, to a certain extent, superior performance beyond BERT-family models of the same scale:
 
 <div align='center'>
-    <img src="/images/3-figures/3-2.webp" alt="Figure 3.14 alt text" width="892" height="580" loading="lazy" decoding="async" />
-    <p>Figure 3.14 alt text</p>
+    <img src="/images/3-figures/3-2.webp" alt="Figure 3.14 GLM pre-training task" width="892" height="580" loading="lazy" decoding="async" />
+    <p>Figure 3.14 GLM pre-training task</p>
 </div>
 
 However, the advantages of the GLM pre-training task were mostly displayed in the pre-trained model era. After entering the LLM era, for pre-training at super-large scale and volume, CLM showed advantages far beyond MLM. By increasing the model scale and expanding the pre-training scale, generative models pre-trained with CLM can also surpass MLM-trained understanding models in text understanding. Therefore, the ChatGLM series of models only used the GLM pre-training idea in the first-generation model; starting from ChatGLM2, it returned to the traditional CLM modeling. Although, from the perspective of the overall development path of LLMs, the GLM pre-training task seems to be a failed attempt, its idea of fusing CLM and MLM through ingenious design, and of producing a Chinese open-source native LLM at the earliest opportunity, still has considerable reference significance.
@@ -484,8 +484,8 @@ In January 2024, Zhipu released the GLM-4 series of models supporting a 128K con
 Figure 3.15 shows the evolution of the performance of the GLM series of models on benchmark sets:
 
 <div align='center'>
-    <img src="/images/3-figures/3-3.webp" alt="Figure 3.15 alt text" width="1019" height="728" loading="lazy" decoding="async" />
-    <p>Figure 3.15 alt text</p>
+    <img src="/images/3-figures/3-3.webp" alt="Figure 3.15 Benchmark performance of the GLM model family" width="1019" height="728" loading="lazy" decoding="async" />
+    <p>Figure 3.15 Benchmark performance of the GLM model family</p>
 </div>
 
 **References**

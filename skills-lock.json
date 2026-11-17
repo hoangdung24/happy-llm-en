@@ -8,6 +8,13 @@
       "skillPath": "skills/agent-browser/SKILL.md",
       "computedHash": "a0dfac7503f69bcf529b2660fc79964064c4f179eb65695904ddc45fc0d99d20"
     },
+    "better-accessibility": {
+      "source": "jakubkrehel/skills",
+      "commit": "6c2120103600407a1a9986afd834e73144ef8998",
+      "sourceType": "github",
+      "skillPath": "skills/better-accessibility/SKILL.md",
+      "computedHash": "e610b7be067fb62bc09094ebabcaaef429dde4398900b340e29f00a0217a5731"
+    },
     "core-web-vitals": {
       "source": "addyosmani/web-quality-skills",
       "commit": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
