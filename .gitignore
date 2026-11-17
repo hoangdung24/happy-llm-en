@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+*.log
+.wrangler/
+.ch8-src.md
+.ch8-part*.md
+chapter*-part*.md
+.opencode/
