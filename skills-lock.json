@@ -21,6 +21,13 @@
       "sourceType": "github",
       "skillPath": "skills/core-web-vitals/SKILL.md",
       "computedHash": "de50c203aa9dafa8dee9dd8c06782e3fc610704b83c1c408e4c5ee2337c4cd2a"
+    },
+    "simple-english": {
+      "source": "AminBlg/SimpleEnglish",
+      "commit": "300432a9e4c473229a7049ab61b8ca2522d9214c",
+      "sourceType": "github",
+      "skillPath": "skills/simple-english/SKILL.md",
+      "computedHash": "6e790385d3462e7d02270ca86db479a22d69f8a87fa16afeb85343ff42ff18af"
     }
   }
 }

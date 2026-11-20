@@ -2,57 +2,57 @@
 title: "Chapter 6: Training LLMs in Practice"
 ---
 
-In Chapter 5, we built the LLaMA2 model entirely from scratch and implemented the full pipeline of its pretraining and fine-tuning. In this chapter, we take a deep dive into the practice of the LLM training pipeline, focusing on how to use mainstream LLM frameworks to train models and optimize performance efficiently.
+Chapter 5 built the LLaMA2 model from scratch and implemented its full pretraining and fine-tuning pipeline. This chapter covers the practice of the LLM training pipeline. It shows how to use mainstream LLM frameworks to train models and optimize performance.
 
-> Reading advice: before starting the practice in this chapter, it is recommended to first read [Chapter 6 Practice Guide](./readme.md) and [Learning and Environment Setup](../学习与环境准备.md). The main text of this chapter focuses on three main threads: Pretrain, SFT, and PEFT. Preference alignment is treated as an advanced topic: Section 6.4 outlines the overall learning route and provides supplementary materials.
+> Reading advice: read [Chapter 6 Practice Guide](./readme.md) and [Learning and Environment Setup](../学习与环境准备.md) before you start the practice in this chapter. The main text of this chapter covers three threads: Pretrain, SFT, and PEFT. Preference alignment is an advanced topic. Section 6.4 outlines the learning route and provides supplementary materials.
 
 ## 6.1 Model Pretraining
 
-In the previous chapter, we dissected the model architecture and training process of LLMs step by step, hand-implementing the LLaMA model architecture and the full Pretrain and SFT pipelines from scratch, gaining a deeper understanding of LLM model principles and training details. However, in practical applications, hand-written LLM training has the following problems:
+The previous chapter covered the model architecture and the training process of LLMs. We hand-implemented the LLaMA architecture and the full Pretrain and SFT pipelines from scratch. That work gives a deeper view of LLM principles and training details. In practice, hand-written LLM training has these problems:
 
-- Hand-implementing the LLM architecture requires a large amount of work, and it is difficult to keep up with the latest architectural innovations in real time;
-- Training an LLM implemented from scratch cannot well support multi-GPU distributed training, and training efficiency is low;
-- It is incompatible with existing pretrained LLMs, making it impossible to use pretrained model parameters.
+- Hand-implementing the LLM architecture takes a lot of work. You cannot keep up with new architectural innovations in real time.
+- An LLM implemented from scratch does not support multi-GPU distributed training well. Training efficiency is low.
+- It is incompatible with existing pretrained LLMs, so it cannot use pretrained model parameters.
 
-Therefore, in this chapter, we introduce Transformers, the mainstream training framework in the LLM field, and, combined with mainstream frameworks such as the distributed framework DeepSpeed and the efficient fine-tuning framework peft, we practice the full Pretrain and SFT pipeline using transformers, to better align with the industry's mainstream LLM technical solutions.
+This chapter introduces Transformers, the mainstream training framework in the LLM field. With frameworks such as DeepSpeed for distribution and peft for efficient fine-tuning, we practice the full Pretrain and SFT pipeline with transformers. This approach matches the industry's mainstream LLM technical solutions.
 
 ### 6.1.1 Framework Introduction
 
-Transformers is an NLP framework developed by Hugging Face. Through modular design, it provides unified support for hundreds of mainstream model architectures including BERT, GPT, LLaMA, T5, and ViT. With Transformers, developers no longer need to repeatedly implement basic network structures; any pretrained model can be loaded with a single click via the AutoModel class. Figure 6.1 shows the homepage of the Hugging Face Transformers course:
+Transformers is an NLP framework developed by Hugging Face. Its modular design gives unified support for hundreds of mainstream model architectures, including BERT, GPT, LLaMA, T5, and ViT. With Transformers, developers no longer need to repeatedly implement basic network structures. You can load any pretrained model with a single call via the AutoModel class. Figure 6.1 shows the homepage of the Hugging Face Transformers course:
 
 <div align='center'>
     <img src="/images/6-images/1-1.webp" alt="Figure 6.1 Hugging Face Transformers" width="1544" height="678" loading="lazy" decoding="async" />
     <p>Figure 6.1 Hugging Face Transformers</p>
 </div>
 
-Meanwhile, the Trainer class built into the framework encapsulates the core logic of distributed training and supports multiple distributed training strategies such as PyTorch native DDP, DeepSpeed, and Megatron-LM. By simply configuring the training parameters, you can achieve hybrid parallel training combining data parallelism, model parallelism, and pipeline parallelism, easily supporting efficient training of models with tens of billions of parameters on an 8-GPU A100 cluster. Together with components such as SavingPolicy and LoggingCallback, it enables automated management of the training process. It also supports integration with frameworks such as DeepSpeed, peft, wandb, and Swanlab, which can be seamlessly connected directly via parameter settings, enabling fast and efficient LLM training.
+The framework also includes the Trainer class. Trainer encapsulates the core logic of distributed training. It supports several distributed training strategies, such as PyTorch native DDP, DeepSpeed, and Megatron-LM. You configure the training parameters only. Then you get hybrid parallel training that combines data parallelism, model parallelism, and pipeline parallelism. This setup supports efficient training of models with tens of billions of parameters on an 8-GPU A100 cluster. Components such as SavingPolicy and LoggingCallback manage the training process automatically. Trainer also integrates with frameworks such as DeepSpeed, peft, wandb, and Swanlab. You connect them through parameter settings, so LLM training is fast.
 
-Even more important for NLP researchers in the LLM era, HuggingFace built its huge AI community on top of the Transformers framework, opening up hundreds of millions of pretrained model parameters and 250,000+ datasets of various types. Through multiple frameworks such as Transformers, Datasets, and Evaluate, it integrates pretrained models, datasets, and evaluation functions, helping developers conveniently use any pretrained model and easily develop and deploy their own models on the basis of open-source models and datasets.
+The Hugging Face community matters even more for NLP researchers in the LLM era. It sits on top of the Transformers framework. It opens hundreds of millions of pretrained model parameters and 250,000+ datasets of various types. Frameworks such as Transformers, Datasets, and Evaluate join pretrained models, datasets, and evaluation functions. Developers can use any pretrained model with one call. They can also develop and deploy their own models on the basis of open-source models and datasets.
 
 <div align='center'>
     <img src="/images/6-images/1-2.webp" alt="Figure 6.2 The Hugging Face Transformers model community" width="1600" height="831" loading="lazy" decoding="async" />
     <p>Figure 6.2 The Hugging Face Transformers model community</p>
 </div>
 
-In the LLM era, adjusting model architectures and re-pretraining are becoming less and less common; developers' business applications increasingly consist of using pretrained LLMs for Post-Training and SFT to support their downstream business applications. Moreover, because pretrained models are large in size, convenient integration with distributed training frameworks such as DeepSpeed has gradually become an essential skill for NLP model training in the LLM era. As a result, Transformers has gradually become the mainstream framework for NLP technology in both academia and industry; whether for enterprise business development or scientific research, Transformers is increasingly the first choice for model implementation. Meanwhile, newly released open-source LLMs such as DeepSeek and Qwen also open up their pretrained weights and model invocation demos in the Transformers community as soon as they are released. By using the Transformers framework, LLM training and development can be completed efficiently and conveniently, delivering industrial-grade output. Next, based on the Transformers framework, we will introduce how to implement LLM Pretrain and SFT with Transformers.
+In the LLM era, model architecture changes and fresh pretraining are less common. Business applications now use pretrained LLMs for Post-Training and SFT. Pretrained models are also large, so integration with distributed training frameworks such as DeepSpeed is now an essential skill for NLP model training. As a result, Transformers has become the mainstream framework for NLP in both academia and industry. Enterprise development and scientific research both pick Transformers first for model implementation. New open-source LLMs such as DeepSeek and Qwen also publish their pretrained weights and invocation demos in the Transformers community at release. With the Transformers framework, LLM training and development are fast and convenient, and they deliver industrial-grade output. Next, we use the Transformers framework to implement LLM Pretrain and SFT.
 
 ### 6.1.2 Initializing the LLM
 
-We can use the AutoModel class from transformers to directly initialize an already-implemented model. For any pretrained model, its parameters contain the model's configuration information. If you want to train an LLM from scratch, you can initialize it directly using an existing model architecture. Here, we use the model architecture of [Qwen-2.5-1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B/tree/main) as an example:
+You can use the AutoModel class from transformers to initialize an already-implemented model directly. For any pretrained model, its parameters contain the model's configuration information. To train an LLM from scratch, initialize it directly with an existing model architecture. Here, we use the model architecture of [Qwen-2.5-1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B/tree/main) as an example:
 
 <div align='center'>
     <img src="/images/6-images/1-3.webp" alt="Figure 6.3 Qwen-2.5-1.5B" width="1600" height="818" loading="lazy" decoding="async" />
     <p>Figure 6.3 Qwen-2.5-1.5B</p>
 </div>
 
-This page shows the Qwen-2.5-1.5B model parameters in the HuggingFace community. The `config.json` file contains the model's configuration information, including the model architecture, hidden size, number of layers, etc., as shown in Figure 6.4:
+This page shows the Qwen-2.5-1.5B model parameters in the Hugging Face community. The `config.json` file holds the model's configuration information: the model architecture, hidden size, number of layers, and so on. Figure 6.4 shows the file:
 
 <div align='center'>
     <img src="/images/6-images/1-4.webp" alt="Figure 6.4 The Qwen-2.5-1.5B config.json file" width="1600" height="818" loading="lazy" decoding="async" />
     <p>Figure 6.4 The Qwen-2.5-1.5B config.json file</p>
 </div>
 
-We can reuse this model's configuration information to initialize a Qwen-2.5-1.5B model for training, or modify the configuration information—e.g., changing the hidden size or the number of attention heads—to customize a model architecture. HuggingFace provides Python tools to conveniently download the model parameters you want to use:
+You can reuse this model's configuration information to initialize a Qwen-2.5-1.5B model for training. You can also modify the configuration information, for example the hidden size or the number of attention heads, to customize a model architecture. Hugging Face provides Python tools to download the model parameters you want:
 
 ```python
 import os
@@ -62,14 +62,14 @@ os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.system('huggingface-cli download --resume-download Qwen/Qwen2.5-1.5B --local-dir your_local_dir')
 ```
 
-As shown in Figure 6.5, "Qwen/Qwen2.5-1.5B" here is the identifier of the model to download; for other models, you can directly copy the model name from HuggingFace:
+As Figure 6.5 shows, "Qwen/Qwen2.5-1.5B" here is the identifier of the model to download. For other models, copy the model name directly from Hugging Face:
 
 <div align='center'>
     <img src="/images/6-images/1-5.webp" alt="Figure 6.5 Model download identifier" width="1600" height="841" loading="lazy" decoding="async" />
     <p>Figure 6.5 Model download identifier</p>
 </div>
 
-After downloading, you can use the AutoConfig class to directly load the downloaded configuration file:
+After download, use the AutoConfig class to load the downloaded configuration file directly:
 
 ```python
 # Load the predefined model parameters - here using Qwen-2.5-1.5B as an example
@@ -81,7 +81,7 @@ model_path = "qwen-1.5b"
 config = AutoConfig.from_pretrained(model_name_or_path)
 ```
 
-You can also customize the configuration file and then load it in the same way. You can use the AutoModel class to generate the corresponding model from the loaded configuration object:
+You can also customize the configuration file and then load it in the same way. Use the AutoModel class to generate the corresponding model from the loaded configuration object:
 
 ```python
 # Generate a defined model from this configuration
@@ -90,14 +90,14 @@ from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_config(config,trust_remote_code=True)
 ```
 
-Since LLMs generally use the CausalLM architecture, we use the AutoModelForCausalLM class for loading here. For classification-task training, you can use the AutoModelForSequenceClassification class instead. Inspecting this model, Figure 6.6 shows that its architecture matches the defined configuration file:
+LLMs generally use the CausalLM architecture, so we use the AutoModelForCausalLM class for loading here. For classification-task training, use the AutoModelForSequenceClassification class instead. Figure 6.6 shows that this model's architecture matches the defined configuration file:
 
 <div align='center'>
     <img src="/images/6-images/1-6.webp" alt="Figure 6.6 Model architecture output" width="913" height="698" loading="lazy" decoding="async" />
     <p>Figure 6.6 Model architecture output</p>
 </div>
 
-This model is a Qwen-2.5-1.5B model initialized from scratch. In general, we rarely pretrain an LLM initialized from scratch; a more common practice is to load a pretrained LLM's weights and continue training on your own corpus. Here, we also introduce how to initialize a pretrained model from downloaded model parameters.
+This model is a Qwen-2.5-1.5B model initialized from scratch. In general, we rarely pretrain an LLM initialized from scratch. The more common practice is to load a pretrained LLM's weights and continue training on your own corpus. Here, we also show how to initialize a pretrained model from downloaded model parameters.
 
 ```python
 from transformers import AutoModelForCausalLM
@@ -105,9 +105,9 @@ from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_pretrained(model_name_or_path,trust_remote_code=True)
 ```
 
-Similarly, just load directly with the from_pretrained method; model_name_or_path here is the local path of the downloaded parameters.
+Load it directly with the from_pretrained method. Here, model_name_or_path is the local path of the downloaded parameters.
 
-We also need to initialize a tokenizer. Here, we can directly use the tokenizer parameters corresponding to Qwen-2.5-1.5B:
+We also need a tokenizer. Here, use the tokenizer parameters of Qwen-2.5-1.5B directly:
 
 ```python
 # Load a pretrained tokenizer
@@ -116,11 +116,11 @@ from transformers import AutoTokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 ```
 
-The loaded tokenizer can be used directly to tokenize any text.
+The loaded tokenizer tokenizes any text directly.
 
 ### 6.1.3 Pretraining Data Processing
 
-As in Chapter 5, we use the Mobvoi Seq Monkey open-source dataset as the pretraining dataset, and the dataset can be downloaded and extracted in the same way as in Chapter 5. HuggingFace's datasets library is a third-party library that pairs with the transformers framework for data downloading and processing. We can directly use the load_dataset function of datasets to load the pretraining data:
+As in Chapter 5, we use the Mobvoi Seq Monkey open-source dataset for pretraining. Download and extract it as in Chapter 5. Hugging Face's datasets library is a third-party library that pairs with the transformers framework for data download and processing. Use the load_dataset function of datasets to load the pretraining data:
 
 ```python
 # Load the pretraining data
@@ -129,7 +129,7 @@ from datasets import load_dataset
 ds = load_dataset('json', data_files='/mobvoi_seq_monkey_general_open_corpus.jsonl')
 ```
 
-Note that since the dataset is large, loading may take a long time or run out of memory; it is recommended to split off a portion of the pretraining dataset for early testing. The loaded ds is a DatasetDict object, and the loaded data is saved by default under the `train` key, which can be inspected with the following code:
+The dataset is large, so loading can take a long time or run out of memory. Split off a portion of the pretraining dataset for early testing. The loaded ds is a DatasetDict object. The loaded data is saved by default under the `train` key. Inspect it with the following code:
 
 ```python
 ds["train"][0]
@@ -140,7 +140,7 @@ ds["train"][0]
     <p>Figure 6.7 Dataset preview</p>
 </div>
 
-You can view the dataset's features (i.e., its columns) through the features attribute. Here we need to save the dataset's column names, because in subsequent data processing, after tokenizing the text, the original text needs to be removed:
+View the dataset's features, that is, its columns, through the features attribute. Here we need to save the dataset's column names. In later processing, we tokenize the text and then remove the original text:
 
 ```python
 # View the features
@@ -148,7 +148,7 @@ column_names = list(ds["train"].features)
 # columnes_name:["text"]
 ```
 
-Next, use the loaded tokenizer to process the dataset, using the map function for batch processing:
+Next, use the loaded tokenizer to process the dataset. Use the map function for batch processing:
 
 ```python
 # Tokenize the dataset
@@ -168,9 +168,9 @@ tokenized_datasets = ds.map(
 )
 ```
 
-The processed dataset contains two columns, 'input_ids' and 'attention_mask', which are the tokenized numeric sequences of the text and the attention mask (indicating whether padding was applied). The map method removes the original 'text' column via the remove_columns parameter, and it is no longer used in training.
+The processed dataset has two columns, 'input_ids' and 'attention_mask'. They hold the tokenized numeric sequences of the text and the attention mask. The mask shows whether padding was applied. The map method removes the original 'text' column through the remove_columns parameter. Training no longer uses that column.
 
-Since pretraining is generally a CLM task, learning the sequence semantics of multiple samples at once does not affect model performance; and because the training data is large and training takes long, the requirements on training efficiency are high. During pretraining, multiple text segments are usually concatenated together and processed into uniformly sized text blocks, and each text block is then used for training. Here, we implement a concatenation function that concatenates text into blocks of 2048 tokens, and use the map method for batch processing:
+Pretraining is generally a CLM task. Learning the sequence semantics of multiple samples at once does not affect model performance. The training data is also large and training takes long, so the requirements on training efficiency are high. During pretraining, we usually concatenate multiple text segments and process them into uniform text blocks. Each text block is then used for training. Here, we implement a concatenation function that joins text into blocks of 2048 tokens. We use the map method for batch processing:
 
 ```python
 # Pretraining generally concatenates text into fixed-length text segments
@@ -208,13 +208,13 @@ lm_datasets = tokenized_datasets.map(
 train_dataset = lm_datasets["train"]
 ```
 
-The resulting train_dataset is a pretraining dataset that can be used directly for CLM Pretrain, with each sample 2048 tokens long.
+The resulting train_dataset is a pretraining dataset ready for CLM Pretrain. Each sample is 2048 tokens long.
 
 ### 6.1.4 Training with the Trainer
 
-Next, we use the Trainer class provided by transformers for training. Trainer encapsulates the model training logic and includes good efficiency optimizations, visualization, and more, enabling efficient and convenient LLM training.
+Next, we train with the Trainer class provided by transformers. Trainer encapsulates the model training logic and includes efficiency optimizations and visualization. It makes LLM training fast and convenient.
 
-First we need to configure the training hyperparameters, using the TrainingArguments class to instantiate a parameter object:
+First, configure the training hyperparameters. Use the TrainingArguments class to instantiate a parameter object:
 
 ```python
 from transformers import TrainingArguments
@@ -232,7 +232,7 @@ training_args = TrainingArguments(
 )
 ```
 
-Then, based on the initialized model, tokenizer, and training_args, and passing in the processed training dataset, instantiate a trainer object:
+Then instantiate a trainer object from the initialized model, tokenizer, and training_args. Pass in the processed training dataset:
 
 ```python
 from transformers import Trainer, default_data_collator
@@ -250,7 +250,7 @@ trainer = Trainer(
 )
 ```
 
-Then use the train method, which will train and save according to the configured training hyperparameters:
+Then call the train method. It trains and saves according to the configured training hyperparameters:
 
 ```python
 trainer.train()
@@ -260,9 +260,9 @@ trainer.train()
 
 ### 6.1.5 Distributed Training with DeepSpeed
 
-Because pretraining is large in scale and long in duration, running it in a Jupyter Notebook is generally not recommended, as it is prone to interruption. Also, due to the large scale of pretraining, multi-GPU distributed training is usually required; otherwise training takes too long. Here, we introduce how, based on the above code, to use the DeepSpeed framework for distributed training, in order to accomplish industry-usable LLM Pretrain.
+Pretraining is large in scale and long in duration. Do not run it in a Jupyter Notebook, because it is prone to interruption. The large scale also usually requires multi-GPU distributed training. Otherwise training takes too long. Based on the above code, we show how to use the DeepSpeed framework for distributed training and complete industry-usable LLM Pretrain.
 
-Long-running training generally uses a bash script to set the hyperparameters and then launches a pre-written Python script to run the training. We use a Python script (`./code/pretrain.py`) to implement the full training pipeline.
+Long-running training generally uses a bash script to set the hyperparameters. The script then launches a pre-written Python script to run the training. We use a Python script (`./code/pretrain.py`) to implement the full training pipeline.
 
 First import the required third-party libraries:
 
@@ -298,7 +298,7 @@ from transformers.trainer_utils import get_last_checkpoint
 import swanlab
 ```
 
-First, we need to define several hyperparameter classes to handle the hyperparameter values set in the sh script. Since transformers already has the TrainingArguments class, which includes the essential training hyperparameters, we only need to define the hyperparameters not included in TrainingArguments, mainly the model-related hyperparameters (defined in ModelArguments) and the data-related hyperparameters (defined in DataTrainingArguments):
+First, define several hyperparameter classes to handle the hyperparameter values set in the sh script. Transformers already has the TrainingArguments class, which includes the essential training hyperparameters. We only need to define the hyperparameters not included in TrainingArguments. These are mainly the model hyperparameters, defined in ModelArguments, and the data hyperparameters, defined in DataTrainingArguments:
 
 ```python
 # Hyperparameter classes
@@ -354,7 +354,7 @@ class DataTrainingArguments:
     )
 ```
 
-Then we can define a main function to wrap the training process described above. First, use the HfArgumentParser tool provided by transformers to load the hyperparameters set in the sh script:
+Then define a main function to wrap the training process described above. First, use the HfArgumentParser tool provided by transformers to load the hyperparameters set in the sh script:
 
 ```python
 # Load script arguments
@@ -362,7 +362,7 @@ parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArgume
 model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 ```
 
-In large-scale training, logs are generally used to record information about the training process; directly printing with print is not recommended, as key training information can be lost. Here, we directly use Python's built-in logging library for logging. First, logging needs to be configured:
+Large-scale training uses logs to record the training process. Direct print is not a good choice, because key training information can be lost. Here, use the built-in logging library of Python. First, configure logging:
 
 ```python
 # Set up logging
@@ -382,7 +382,7 @@ transformers.utils.logging.enable_default_handler()
 transformers.utils.logging.enable_explicit_format()
 ```
 
-Here the log level is set to INFO. The logging library has five levels in total: DEBUG, INFO, WARNING, ERROR, and CRITICAL. Whichever level you set, only messages at that level and above will be output. Once configured, use logger directly wherever logging is needed, specifying the log level when recording, for example:
+Here the log level is INFO. The logging library has five levels: DEBUG, INFO, WARNING, ERROR, and CRITICAL. The set level outputs messages at that level and above only. Once you configure logging, use logger directly wherever logging is needed. Specify the log level when recording, for example:
 
 ```python
 # Record overall training status
@@ -393,9 +393,9 @@ logger.warning(
 logger.info(f"Training/evaluation parameters {training_args}")
 ```
 
-We will not go into further detail about logging in the script below.
+The script below does not cover logging in more detail.
 
-In large-scale training, interruptions are often unavoidable. Training generally saves checkpoints at fixed intervals, and after an interruption you can simply resume training from the most recent checkpoint. Therefore, we first need to check whether an old checkpoint exists and resume training from the checkpoint:
+Large-scale training often runs into interruptions. Training generally saves checkpoints at fixed intervals. After an interruption, resume training from the most recent checkpoint. First check whether an old checkpoint exists, and resume training from it:
 
 ```python
 # Check for checkpoints
@@ -413,7 +413,7 @@ if os.path.isdir(training_args.output_dir):
         )
 ```
 
-Next, initialize the model in the way introduced above; here, from-scratch initialization and initialization from an existing pretrained model are wrapped together:
+Next, initialize the model in the way introduced above. Here, the code wraps from-scratch initialization and initialization from an existing pretrained model together:
 
 ```python
 # Initialize the model
@@ -437,7 +437,7 @@ else:
     raise ValueError("config_name and model_name_or_path cannot both be empty")
 ```
 
-Then, similarly, load the tokenizer and process the pretraining data. This part is exactly the same as above, so we will not repeat it here; readers can check the details in the code. Similarly, use the Trainer for training:
+Then load the tokenizer and process the pretraining data in the same way. This part is identical to the code above, so we do not repeat it here. Check the details in the code. Then use the Trainer for training:
 
 ```python
 logger.info("Initializing Trainer")
@@ -461,18 +461,18 @@ train_result = trainer.train(resume_from_checkpoint=checkpoint)
 trainer.save_model() 
 ```
 
-Note that since we checked for existing checkpoints above, resume_from_checkpoint is used here to implement the functionality of resuming training from a checkpoint.
+We checked for existing checkpoints above. This code uses resume_from_checkpoint to resume training from a checkpoint.
 
-Because monitoring training progress and the downward trend of the loss is especially important in large-scale training, the script uses swanlab as the training monitoring tool. swanlab is initialized at the beginning of the script:
+Large-scale training must monitor training progress and the downward trend of the loss. The script uses swanlab as the training monitoring tool. Swanlab is initialized at the beginning of the script:
 
 ```python
 # Initialize SwanLab
 swanlab.init(project="pretrain", experiment_name="from_scrach")
 ```
 
-After training starts, the terminal prints the swanlab monitoring URL, which you can click to observe training progress. We will not go into the details of using swanlab here; readers are welcome to consult the relevant documentation.
+After training starts, the terminal prints the swanlab monitoring URL. Click it to observe training progress. This chapter does not cover swanlab details. Consult the relevant documentation.
 
-After completing the above code, we use a sh script (`./code/pretrain.sh`) to define the hyperparameter values and launch the training through DeepSpeed, achieving efficient multi-GPU distributed training:
+The above code is complete. Now use a sh script (`./code/pretrain.sh`) to set the hyperparameter values. The script launches training through DeepSpeed. This step gives efficient multi-GPU distributed training:
 
 ```bash
 # Set visible GPUs
@@ -506,7 +506,7 @@ deepspeed pretrain.py \
     # --resume_from_checkpoint ${output_model}/checkpoint-20400 \
 ```
 
-After installing the DeepSpeed third-party library, you can launch multi-GPU training directly with the deepspeed command. The above script commands mainly define the values of the various hyperparameters and can be used as a reference. In Chapter 4, we introduced the principles of DeepSpeed distributed training and the ZeRO stage settings; here, we train with ZeRO-2. Here, `ds_config_zero.json` is loaded as the DeepSpeed configuration parameters:
+After you install the DeepSpeed third-party library, launch multi-GPU training directly with the deepspeed command. The script commands above mainly set the values of the various hyperparameters. Use them as a reference. Chapter 4 covered the principles of DeepSpeed distributed training and the ZeRO stage settings. Here, we train with ZeRO-2. The file `ds_config_zero.json` holds the DeepSpeed configuration:
 
 ```json
 {
@@ -564,23 +564,24 @@ After installing the DeepSpeed third-party library, you can launch multi-GPU tra
 ```
 
 Finally, run the `pretrain.sh` script in the terminal with bash to start training.
+
 ## 6.2 Supervised Fine-Tuning of the Model
 
-In the previous section, we introduced how to use the Transformers framework to perform model pretraining quickly and efficiently. In this part, building on the previous content, we introduce how to use the Transformers framework to perform supervised fine-tuning on a pretrained model.
+The previous section showed how to use the Transformers framework for fast model pretraining. This part builds on that content. It shows how to use the Transformers framework for supervised fine-tuning on a pretrained model.
 
 ### 6.2.1 Pretrain VS SFT
 
-First, we need to review what exactly the core difference is between pretraining an LLM and supervised fine-tuning it. As mentioned in Chapter 4, current mature LLMs are generally trained through the three stages Pretrain-SFT-RLHF. In the Pretrain stage, massive unlabeled text is modeled in a self-supervised manner to learn text semantic rules and the world knowledge contained in the text; in the SFT stage, the pretrained model is generally instruction-tuned, i.e., the model is trained to complete corresponding tasks according to user instructions, so that the model can follow user instructions and plan, act, and produce output based on them. Therefore, both Pretrain and SFT use CLM modeling, and the core difference is that Pretrain trains on massive unlabeled text, where the model directly performs the "predict the next token" task on the text, while SFT uses constructed paired instruction data, where the model models the subsequent output given the input instruction. Reflected in the concrete training implementation, Pretrain computes loss over the entire text, requiring the model to model and predict the whole text; whereas SFT computes loss only on the output, without computing loss on the instruction part.
+First, review the core difference between pretraining an LLM and supervised fine-tuning it. As Chapter 4 said, mature LLMs today are generally trained through the three stages Pretrain-SFT-RLHF. In the Pretrain stage, the model models massive unlabeled text in a self-supervised manner. It learns text semantic rules and the world knowledge contained in the text. In the SFT stage, the pretrained model is generally instruction-tuned. The model is trained to complete tasks according to user instructions. Then it can follow user instructions and plan, act, and produce output based on them. Both Pretrain and SFT use CLM modeling. The core difference is the data. Pretrain trains on massive unlabeled text, where the model performs the "predict the next token" task on the text. SFT uses constructed paired instruction data, where the model models the output that follows the input instruction. Pretrain computes loss over the entire text, so the model must model and predict the whole text. SFT computes loss only on the output and does not compute loss on the instruction part.
 
-Therefore, compared with the Pretrain code completed in the previous section, the SFT part only needs to modify the data processing step, implementing the construction that converts paired instruction data into training samples; the rest follows exactly the same implementation logic as Pretrain. The code script for this part is `./code/finetune.py`.
+Compared with the Pretrain code from the previous section, the SFT part only modifies the data processing step. You implement the construction that converts paired instruction data into training samples. The rest follows the same implementation logic as Pretrain. The code script for this part is `./code/finetune.py`.
 
 ### 6.2.2 Fine-tuning Data Processing
 
-Similarly, as in Chapter 5, we use the BelleGroup dataset open-sourced by Beike for SFT here.
+As in Chapter 5, we use the BelleGroup dataset open-sourced by Beike for SFT here.
 
-During SFT, we define a Chat Template, which specifies how to convert conversation data into a text sequence that the model can model and fit. When we use a model that has undergone SFT for downstream task fine-tuning, we generally need to check that model's Chat Template and adapt to it, in order not to damage the instruction-following ability it learned during SFT. Since we use a Pretrain model for SFT here, we can define a custom Chat Template. Because we used the Qwen-2.5-1.5B model architecture for Pretrain, we continue to use the Qwen-2.5 Chat Template here. If readers do not have enough resources to pretrain the model as in the previous part, they can also use the official Qwen-2.5-1.5B model as the base model for SFT.
+During SFT, we define a Chat Template. It specifies how to convert conversation data into a text sequence that the model can model and fit. When we use a model that has undergone SFT for downstream task fine-tuning, we generally check that model's Chat Template and adapt to it. This step protects the instruction-following ability it learned during SFT. We use a Pretrain model for SFT here, so we define a custom Chat Template. We used the Qwen-2.5-1.5B model architecture for Pretrain, so we continue to use the Qwen-2.5 Chat Template here. If you do not have enough resources to pretrain the model, you can also use the official Qwen-2.5-1.5B model as the base model for SFT.
 
-We first define several special tokens. Special tokens play special roles during model fitting, including the beginning of the text sequence (BOS), the end of the text sequence (EOS), newline characters, etc. Defining special tokens helps avoid semantic confusion during model fitting:
+First, define several special tokens. Special tokens play special roles during model fitting: the beginning of the text sequence (BOS), the end of the text sequence (EOS), and newline characters. Defining special tokens helps avoid semantic confusion during model fitting:
 
 ```python
 
@@ -599,9 +600,9 @@ _user = tokenizer('human').input_ids + nl_tokens
 _assistant = tokenizer('assistant').input_ids + nl_tokens
 ```
 
-The Chat Template of the Qwen series generally has three conversation roles: System, User, and Assistant. System is the system prompt, responsible for activating the model's capabilities; the default is "You are a helpful assistant.", and it is generally not changed during SFT. User is the prompt given by the user; here, since the conversation role in the dataset is "human", we changed "user" to "human". Assistant is the reply given by the LLM, i.e., the text the model needs to fit during SFT.
+The Chat Template of the Qwen series generally has three conversation roles: System, User, and Assistant. System is the system prompt. It activates the model's capabilities. Its default is "You are a helpful assistant.", and it generally does not change during SFT. User is the prompt given by the user. Here, the conversation role in the dataset is "human", so we changed "user" to "human". Assistant is the reply given by the LLM. It is the text the model must fit during SFT.
 
-Next, since this dataset is a multi-turn conversation dataset, we need to concatenate the multi-turn conversations, joining the multiple turns into a single text sequence:
+This dataset is a multi-turn conversation dataset. Next, concatenate the multi-turn conversations. Join the turns into a single text sequence:
 
 ```python
 # Concatenate multi-turn conversations
@@ -649,9 +650,9 @@ for i in tqdm(range(len(sources))):
     targets.append(target[:max_len])
 ```
 
-The above code follows the Qwen Chat Template logic, which readers can modify according to their own preferences. Its key point is that the User's text does not need to be fitted, so the User's corresponding text content in targets is masked using IGNORE_TOKEN_ID, while the Assistant's corresponding text content is the original text, for which loss is computed. Currently, for mainstream LLMs, IGNORE_TOKEN_ID is generally set to -100.
+The code above follows the Qwen Chat Template logic. You can modify it to your own preferences. Its key point is that the User's text does not need to be fitted. So the code masks the User's corresponding text content in targets with IGNORE_TOKEN_ID. The Assistant's corresponding text content is the original text, and the code computes loss for it. For mainstream LLMs today, IGNORE_TOKEN_ID is generally set to -100.
 
-After concatenation, convert the tokenized numeric sequences into `Torch.tensor`, and then assemble them into the dictionary required by the Dataset to return:
+After concatenation, convert the tokenized numeric sequences into `Torch.tensor`. Then assemble them into the dictionary that the Dataset returns:
 
 ```python
 input_ids = torch.tensor(input_ids)
@@ -664,7 +665,7 @@ return dict(
 )
 ```
 
-After completing the above processing logic, you need to define a custom Dataset class that calls this logic to process the data:
+The above processing logic is complete. Next, define a custom Dataset class that calls this logic to process the data:
 
 ```python
 class SupervisedDataset(Dataset):
@@ -691,7 +692,7 @@ class SupervisedDataset(Dataset):
         )
 ```
 
-This class inherits from Torch's Dataset class and can be used directly in the Trainer. After the data processing is done, based on the previous section's script, you only need to modify the data processing logic; the subsequent model training and so on is almost entirely the same. The main function logic is attached here:
+This class inherits from Torch's Dataset class and works directly in the Trainer. The data processing is done. Now use the script from the previous section and modify the data processing logic only. The model training that follows stays the same. The main function logic is attached here:
 
 ```python
 # Load script arguments
@@ -781,71 +782,71 @@ train_result = trainer.train(resume_from_checkpoint=checkpoint)
 trainer.save_model() 
 ```
 
-Launching is likewise done with deepspeed in the sh script; we will not repeat it here. See ./code/finetune.sh for the source code.
+Launching also uses deepspeed in the sh script. We will not repeat it here. See ./code/finetune.sh for the source code.
 
 ## 6.3 Efficient Fine-Tuning
 
-In the previous sections, we introduced in detail the principles and practical details of Pretrain, SFT, and RLHF based on the Transformers framework. However, because LLMs have a large number of parameters and a lot of training data, training the model via the above methods (mainly SFT and RLHF) requires adjusting all of the model's parameters, which puts enormous pressure on resources. For enterprises or research groups with limited resources, how to efficiently and quickly fine-tune the model for a domain or task, so as to use LLMs to accomplish target tasks at low cost, is very important.
+The previous sections introduced the principles and practical details of Pretrain, SFT, and RLHF on the Transformers framework. LLMs have many parameters and much training data. The methods above (mainly SFT and RLHF) train the model by adjusting all parameters. This work puts huge pressure on resources. Enterprises and research groups often have limited resources. They need a fast and cheap way to fine-tune the model for a domain or task. Then they can use LLMs to finish target tasks at low cost.
 
 ### 6.3.1 Efficient Fine-Tuning Approaches
 
-To address the cost of full fine-tuning, there are currently two main solutions:
+Full fine-tuning is expensive. Two main solutions address this cost:
 
-**Adapt Tuning**: i.e., adding Adapter layers to the model; during fine-tuning, the original parameters are frozen and only the Adapter layers are updated.
+Adapter tuning: this method adds Adapter layers to the model. During fine-tuning, the original parameters stay frozen and only the Adapter layers are updated.
 
-Specifically, it inserts parameters for downstream tasks, i.e., Adapter modules, into each layer of the pretrained model; during fine-tuning, the model body is frozen and only the task-specific parameters are trained, as shown in Figure 6.8.
+The method inserts downstream parameters into each layer of the pretrained model. These parameters are called Adapter modules. During fine-tuning, the model body stays frozen and only the task-specific parameters are trained. Figure 6.8 shows the idea.
 
 <div align='center'>
     <img src="/images/6-images/3-1.webp" alt="Figure 6.8 Adapt Tuning" width="1444" height="1046" loading="lazy" decoding="async" />
     <p>Figure 6.8 Adapt Tuning</p>
 </div>
 
-Each Adapter module consists of two feed-forward sublayers. The first feed-forward sublayer takes the output of the Transformer block as its input and projects the original input dimension $d$ down to $m$, controlling the number of parameters of the Adapter module by controlling the size of $m$; typically $m << d$. At the output stage, the second feed-forward sublayer restores the input dimension, projecting $m$ back to $d$, as the output of the Adapter module (the structure on the right in the figure above).
+Each Adapter module has two feed-forward sublayers. The first sublayer takes the output of the Transformer block as input. It projects the original input dimension $d$ down to $m$. The size of $m$ controls the number of Adapter parameters. Typically $m << d$. At the output stage, the second sublayer restores the dimension. It projects $m$ back to $d$ and gives the Adapter output. The right side of the figure above shows this structure.
 
-LoRA is in fact an improved Adapt Tuning method. However, the Adapt Tuning approach has an inference latency problem: because of the added extra parameters and extra computation, the fine-tuned model computes more slowly than the original pretrained model.
+LoRA is an improved Adapter tuning method. Adapter tuning has an inference latency problem. The extra parameters and extra computation make the fine-tuned model compute more slowly than the pretrained model.
 
-**Prefix Tuning**: this method freezes the pretrained LM and adds trainable, task-specific prefixes to the LM, so that different prefixes can be saved for different tasks, and the fine-tuning cost is also small. Specifically, a segment of virtual tokens related to the downstream task is constructed before each input token as the prefix; during fine-tuning, only the parameters of the prefix part are updated, while the other parameters remain frozen.
+Prefix tuning: this method freezes the pretrained LM and adds trainable, task-specific prefixes. You can save a different prefix for each task. The fine-tuning cost is also small. The method builds a segment of virtual tokens before each input token. These tokens relate to the downstream task. During fine-tuning, only the prefix parameters are updated. All other parameters stay frozen.
 
-P-tuning, a currently commonly used efficient fine-tuning method, is in fact an improvement of Prefix Tuning. But Prefix Tuning also has an inherent flaw: the model's available sequence length is reduced. Because the virtual tokens take up the available sequence length, the higher the fine-tuning quality, the lower the model's available sequence length.
+P-tuning is a common efficient fine-tuning method. It is an improvement on prefix tuning. Prefix tuning also has an inherent flaw. The virtual tokens take up available sequence length, so the model loses sequence length. High fine-tuning quality means low available sequence length.
 
 ### 6.3.2 LoRA Fine-Tuning
 
-If a large model maps data into a high-dimensional space for processing, then when handling a narrow small task, such a complex large model may not be needed; it may be solvable within a certain subspace, so there is no need to optimize all parameters. We can define: when optimizing the parameters of a certain subspace can reach a certain level of the performance of full-parameter optimization (e.g., 90% accuracy), the rank of that subspace's parameter matrix can be called the intrinsic rank of the current problem to be solved.
+A large model maps data into a high-dimensional space. A narrow, small task does not need such a complex model. One subspace can solve it, so you do not need to optimize all parameters. Here is a definition. Suppose full-parameter optimization reaches a certain performance level, for example 90% accuracy. You can reach that level by optimizing only one subspace. The rank of that subspace's parameter matrix is then the intrinsic rank of the current problem.
 
-Pretrained models themselves implicitly reduce the intrinsic rank; after fine-tuning for a specific task, the weight matrices in the model actually have a lower intrinsic rank. Meanwhile, the simpler the downstream task, the lower the corresponding intrinsic rank. ([Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning](https://arxiv.org/abs/2012.13255)) Therefore, the parameter matrices of the weight updates can still be learned effectively even when randomly projected into a smaller subspace; it can be understood that for specific downstream tasks, these weight matrices do not need to be full rank. We can indirectly train some dense layers in the neural network by optimizing the rank-decomposition matrices of how the dense layers change during adaptation, thereby achieving the fine-tuning effect by only optimizing the rank-decomposition matrices of the dense layers.
+Pretrained models themselves lower the intrinsic rank. After fine-tuning for a specific task, the weight matrices in the model have a lower intrinsic rank. A simpler downstream task gives a lower intrinsic rank. ([Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning](https://arxiv.org/abs/2012.13255)) The model can still learn the update parameter matrices. It can do this after a random projection into a smaller subspace. You can understand this fact this way. For specific downstream tasks, these weight matrices do not need full rank. You can train some dense layers in the neural network indirectly. Do this by optimizing the rank-decomposition matrices of how the dense layers change during adaptation. The fine-tuning effect then comes from optimizing only these rank-decomposition matrices.
 
-For example, suppose the pretrained parameters are $\theta^D_0$, the intrinsic rank corresponding to the dense-layer weight parameter matrix on a specific downstream task is $\theta^d$, and the fine-tuning parameters for the specific downstream task are $\theta^D$; then:
+For example, suppose the pretrained parameters are $\theta^D_0$. The intrinsic rank of the dense-layer weight matrix on a specific downstream task is $\theta^d$. The fine-tuning parameters for that task are $\theta^D$. Then:
 
 $$\theta^D = \theta^D_0 + \theta^d M$$
 
-This $M$ is the rank-decomposition matrix optimized by LoRA.
+This $M$ is the rank-decomposition matrix that LoRA optimizes.
 
 Compared with other efficient fine-tuning methods, LoRA has the following advantages:
 
-1. Small LoRA modules can be built for different downstream tasks, enabling effective switching between downstream tasks on the basis of shared pretrained model parameters.
-2. LoRA uses an adaptive optimizer (Adaptive Optimizer); there is no need to compute gradients or maintain optimizer states for most parameters, making training more effective and lowering the hardware threshold.
-3. LoRA uses a simple linear design; at deployment, the trainable matrices are merged with the frozen weights, so there is no inference latency.
-4. LoRA is orthogonal to other methods and can be combined with them.
+1. You can build small LoRA modules for different downstream tasks. You can then switch between tasks effectively and share pretrained model parameters.
+2. LoRA uses an adaptive optimizer (Adaptive Optimizer). You do not need to compute gradients or keep optimizer states for most parameters. Training is more effective and needs less hardware.
+3. LoRA uses a simple linear design. At deployment, the trainable matrices merge with the frozen weights. There is no inference latency.
+4. LoRA is orthogonal to other methods and can combine with them.
 
-Therefore, LoRA has become the mainstream method for efficient LLM fine-tuning, especially in cases with limited resources and limited supervised training data, where LoRA fine-tuning is often the first choice for LLM fine-tuning.
+LoRA is now the mainstream method for efficient LLM fine-tuning. It suits cases with limited resources and limited supervised training data. LoRA fine-tuning is often the first choice for LLM fine-tuning.
 
 ### 6.3.3 Principles of LoRA Fine-Tuning
 
 #### (1) Low-Rank Parameterization of the Update Matrix
 
-LoRA assumes that the weight update process also has a relatively low intrinsic rank. For the pretrained weight parameter matrix $W0 \in R^{d \times k}$ ($d$ is the output dimension of the previous layer, $k$ is the input dimension of the next layer), its update is represented using a low-rank decomposition:
+LoRA assumes that the weight update process also has a relatively low intrinsic rank. The pretrained weight matrix is $W0 \in R^{d \times k}$. Here $d$ is the output dimension of the previous layer and $k$ is the input dimension of the next layer. The method represents its update with a low-rank decomposition:
 
 $$W_0 + {\Delta}W = W_0 + BA \space\space  where \space B \in R^{d \times r}, A \in R^{r \times k}$$
 
-During training, $W_0$ is frozen and not updated; $A$ and $B$ contain the trainable parameters.
+During training, $W_0$ stays frozen and does not update. $A$ and $B$ hold the trainable parameters.
 
-Therefore, LoRA's forward pass function is:
+LoRA's forward pass function is:
 
 $$h = W_0 x + \Delta W x = W_0 x + B A x$$
 
-At the start of training, $A$ is initialized with random Gaussian initialization and $B$ is initialized with zeros, and then Adam is used for optimization.
+At the start of training, $A$ uses random Gaussian initialization and $B$ uses zeros. The training then uses Adam for optimization.
 
-The training idea is shown in Figure 6.9:
+Figure 6.9 shows the training idea:
 
 <div align='center'>
     <img src="/images/6-images/3-2.webp" alt="Figure 6.9 LoRA" width="1057" height="852" loading="lazy" decoding="async" />
@@ -854,45 +855,45 @@ The training idea is shown in Figure 6.9:
 
 #### (2) Application to the Transformer
 
-In the Transformer architecture, the LoRA technique is mainly applied to the four weight matrices of the attention module: $W_q$, $W_k$, $W_v$, and $W_0$, while the weight matrices of the MLP are frozen.
+In the Transformer architecture, LoRA applies mainly to four weight matrices of the attention module: $W_q$, $W_k$, $W_v$, and $W_0$. The weight matrices of the MLP stay frozen.
 
-Ablation experiments found that adjusting $W_q$ and $W_v$ simultaneously produces the best results.
+Ablation experiments found that adjusting $W_q$ and $W_v$ together gives the best results.
 
-Under the above conditions, the number of trainable parameters is:
+Under these conditions, the number of trainable parameters is:
 
 $$\Theta = 2 \times L_{LoRA} \times d_{model} \times r$$
 
-where $L_{LoRA}$ is the number of weight matrices to which LoRA is applied, $d_{model}$ is the input/output dimension of the Transformer, and $r$ is the configured LoRA rank.
+Here $L_{LoRA}$ is the number of weight matrices that use LoRA. $d_{model}$ is the input/output dimension of the Transformer. $r$ is the configured LoRA rank.
 
-In general, r is chosen as 4, 8, or 16.
+In general, r is 4, 8, or 16.
 
 ### 6.3.4 LoRA Code Implementation
 
-Currently, the peft library is generally used to implement LoRA fine-tuning of models. peft is a third-party library developed by HuggingFace that encapsulates a variety of efficient fine-tuning methods including LoRA, Adapt Tuning, and P-tuning, allowing convenient LoRA fine-tuning of models based on it.
+People now use the peft library to implement LoRA fine-tuning. Peft is a third-party library from HuggingFace. It collects many efficient fine-tuning methods, including LoRA, Adapter tuning, and P-tuning. You can use it to fine-tune models with LoRA easily.
 
-This article briefly parses the LoRA fine-tuning code in the peft library, giving a simple analysis of the code implementation of LoRA fine-tuning.
+This section parses the LoRA fine-tuning code in the peft library. It gives a simple analysis of the LoRA fine-tuning implementation.
 
 #### (1) Implementation Flow
 
-The internal implementation flow of LoRA fine-tuning mainly includes the following steps:
+The LoRA fine-tuning implementation has these steps:
 
-1. Determine the layers to which LoRA is to be applied. The layers currently supported by the peft library for applying LoRA include three types: nn.Linear, nn.Embedding, and nn.Conv2d.
+1. Find the layers that use LoRA. The peft library supports three layer types for LoRA: nn.Linear, nn.Embedding, and nn.Conv2d.
 
-2. For each layer to which LoRA is to be applied, replace it with a LoRA layer. A so-called LoRA layer is, in fact, a bypass added on top of the layer's original result, simulating parameter updates through low-rank decomposition (i.e., matrix $A$ and matrix $B$).
+2. Replace each target layer with a LoRA layer. A LoRA layer adds a bypass on top of the layer's original result. The bypass simulates the parameter update through a low-rank decomposition, i.e., matrix $A$ and matrix $B$.
 
-3. Freeze the original parameters, perform fine-tuning, and update the LoRA layer parameters.
+3. Freeze the original parameters. Run fine-tuning and update the LoRA layer parameters.
 
 #### (2) Determining the LoRA Layers
 
-When performing LoRA fine-tuning, you first need to determine the LoRA fine-tuning parameters; one important parameter is target_modules. target_modules is generally a list of strings, where each string is the name of a layer to which LoRA should be applied, for example:
+LoRA fine-tuning first needs the LoRA fine-tuning parameters. One important parameter is target_modules. Target_modules is usually a list of strings. Each string is the name of a layer that uses LoRA, for example:
 
 ```python
 target_modules = ["q_proj","v_proj"]
 ```
 
-Here q_proj is $W_q$ in the attention mechanism, and v_proj is $W_v$ in the attention mechanism. We can customize the layers to which LoRA is applied according to the model architecture and task requirements.
+Here q_proj is $W_q$ in the attention mechanism and v_proj is $W_v$ in the attention mechanism. You can customize the LoRA layers to match the model architecture and the task requirements.
 
-When creating the LoRA model, this parameter is fetched and the corresponding layers are then found in the original model; this operation is mainly implemented by using re to regex-match the layer names:
+When the code creates the LoRA model, it reads this parameter and finds the matching layers in the original model. The code uses re to match layer names with a regex:
 
 ```python
 # Find the components of the model whose names contain "q_proj", "v_proj"
@@ -902,9 +903,9 @@ target_module_found = re.fullmatch(self.peft_config.target_modules, key)
 
 #### (3) Replacing with LoRA Layers
 
-For each found target layer, a new LoRA layer is created to replace it.
+For each target layer that the code finds, it creates a new LoRA layer and replaces the old layer.
 
-In its concrete implementation, the LoRA layer defines a Linear class based on the Lora base class, which inherits from both nn.Linear and LoraLayer. LoraLayer is the Lora base class, which mainly constructs LoRA's various hyperparameters:
+In its concrete implementation, the LoRA layer defines a Linear class based on the Lora base class. The class inherits from nn.Linear and LoraLayer. LoraLayer is the Lora base class. It builds LoRA's hyperparameters:
 
 ```python
 class LoraLayer:
@@ -929,7 +930,7 @@ class LoraLayer:
 
 ```
 
-nn.Linear is PyTorch's linear layer implementation. The Linear class is the concrete LoRA layer, implemented mainly as follows:
+nn.Linear is the PyTorch linear layer. The Linear class is the concrete LoRA layer. Its main implementation is:
 
 ```python
 class Linear(nn.Linear, LoraLayer):
@@ -967,11 +968,11 @@ class Linear(nn.Linear, LoraLayer):
 
 ```
 
-When replacing, the weight and bias of the original layer are directly copied to the new LoRA layer, and then the new LoRA layer is assigned to the specified device.
+During replacement, the code copies the weight and bias of the original layer into the new LoRA layer. It then assigns the new LoRA layer to the specified device.
 
 #### (4) Training
 
-After the LoRA layer replacement is implemented, fine-tuning training can proceed. Since the original parameters are already frozen in the LoRA layer, only the parameters of A and B are updated during training, thereby achieving efficient fine-tuning. The overall training process is similar to the original Fine-tune, so we will not repeat it here. Because the LoRA approach is adopted, the forward function is also adjusted accordingly:
+After the LoRA layer replacement, fine-tuning training can start. The original parameters in the LoRA layer are already frozen, so training updates only the parameters of A and B. This update gives efficient fine-tuning. The overall training process is similar to the original fine-tune, so we will not repeat it here. The LoRA approach also changes the forward function:
 
 ```python
     def forward(self, x: torch.Tensor):
@@ -994,11 +995,11 @@ After the LoRA layer replacement is implemented, fine-tuning training can procee
 
 ```
 
-The above code has several branches because it takes parameter merging into account; here we only need to read the second branch, i.e., the elif branch. The LoRA forward computation process is as shown in the formula above: first compute the product of the original parameters with the input, then add the products of A and B with the input respectively.
+The code above has several branches because it handles parameter merging. Here you need to read only the second branch, i.e., the elif branch. The LoRA forward computation follows the formula above. The code first computes the product of the original parameters and the input. It then adds the products of A and B with the input.
 
 ### 6.3.5 LoRA Fine-Tuning with peft
 
-peft is well encapsulated, enabling us to fine-tune large models conveniently and efficiently. Here, using the LLM SFT from Section 2 as an example, we briefly introduce how to use peft to fine-tune a large model. If applied to RLHF, the overall approach is the same.
+peft is well encapsulated, so you can fine-tune large models easily and efficiently. Here we use the LLM SFT from Section 2 as an example. We briefly show how to use peft to fine-tune a large model. The approach is the same for RLHF.
 
 First load the required libraries:
 
@@ -1009,7 +1010,7 @@ from peft import get_peft_model, LoraConfig, TaskType, PeftModel
 from transformers import Trainer
 ```
 
-Next, load the original model and the original tokenizer, in the same way as in Section 2:
+Next, load the original model and the original tokenizer. The method is the same as in Section 2:
 
 ```python
 # Load the base model
@@ -1019,7 +1020,7 @@ model = AutoModel.from_pretrained(
 )
 ```
 
-Then, set the peft parameters:
+Then set the peft parameters:
 
 ```python
 peft_config = LoraConfig(
@@ -1031,17 +1032,17 @@ peft_config = LoraConfig(
         )
 ```
 
-Note that the LoRA parameters may differ for different models. For example, for ChatGLM there is no need to specify target_modeules, as peft can find them on its own; for BaiChuan, you need to specify them manually. task_type is the model's task type; large models are generally CAUSAL_LM, i.e., traditional language models.
+The LoRA parameters differ for different models. For ChatGLM you do not need to specify target_modules, because peft finds them on its own. For BaiChuan you must specify them manually. Task_type is the task type of the model. Large models are generally CAUSAL_LM, that is, traditional language models.
 
-Then, obtain the LoRA model:
+Then get the LoRA model:
 
 ```python
 model = get_peft_model(model, peft_config)
 ```
 
-The underlying operation of get_peft_model here is exactly the concrete implementation analyzed above.
+The get_peft_model call here runs exactly the implementation analyzed above.
 
-Finally, train with the Trainer provided by transformers; the GPU memory used for training will drop substantially:
+Finally, train with the Trainer from transformers. The GPU memory used for training will drop a lot:
 
 ```python
 trainer = Trainer(
@@ -1053,43 +1054,43 @@ trainer = Trainer(
 trainer.train()
 ```
 
-If applied to DPO or KTO, likewise just add the LoRA parameters and obtain a LoRA model via `get_peft_model`; nothing else needs to be modified. However, note that while LoRA fine-tuning can greatly reduce GPU memory usage and achieves good results on downstream task adaptation, for tasks that require learning corresponding knowledge, LoRA only adjusts the low-rank matrices and has difficulty injecting knowledge, so the results are generally poor; therefore, LoRA is not recommended for model pretraining or post-training.
+DPO and KTO work the same way. Just add the LoRA parameters and get a LoRA model via `get_peft_model`. You need no other change. LoRA fine-tuning can greatly reduce GPU memory usage. It also gives good results on downstream task adaptation. But some tasks need new knowledge. LoRA adjusts only the low-rank matrices and finds it hard to inject knowledge, so results are generally poor. Do not use LoRA for model pretraining or post-training.
 
 ## 6.4 Preference Alignment
 
-In the preceding sections, we have completed the three main training threads: Pretrain, SFT, and efficient fine-tuning. For an LLM serving real users, these steps are usually not enough. Although the model already has strong language modeling ability and basic instruction-following ability, further post-training is still needed to constrain and correct its answer style, safety, helpfulness, and stability; this step is generally collectively referred to as preference alignment.
+The preceding sections covered the three main training threads: Pretrain, SFT, and efficient fine-tuning. These steps are usually not enough for an LLM that serves real users. The model already has strong language modeling ability and basic instruction-following ability. It still needs more post-training to constrain and correct its answer style, safety, helpfulness, and stability. People call this step preference alignment.
 
 ### 6.4.1 Why Preference Alignment Is Needed
 
-Pretrain focuses more on learning language patterns and world knowledge; SFT focuses more on teaching the model to follow instructions; while preference alignment emphasizes "which answers better match human expectations". For example, in question answering, code generation, or complex reasoning tasks, the model must not only give an answer, but also try to express itself clearly, keep the content safe, keep the reasoning process stable, and avoid irrelevant answers or harmful output as much as possible.
+Pretrain focuses more on learning language patterns and world knowledge. SFT focuses more on teaching the model to follow instructions. Preference alignment emphasizes "which answers better match human expectations". Question answering, code generation, and complex reasoning tasks need more than an answer. The model must also try to express itself clearly, keep the content safe, keep the reasoning process stable, and avoid irrelevant answers or harmful output.
 
-From the perspective of the training pipeline, preference alignment comes after SFT and is a key link in Post-Training. Its core idea is not to have the model continue simply fitting text, but to teach the model to prefer, among multiple candidate answers, the outputs that humans like more.
+From the training pipeline view, preference alignment comes after SFT and is a key link in post-training. Its core idea is not to keep fitting text. It teaches the model to prefer the outputs that humans like more, among multiple candidate answers.
 
 ### 6.4.2 Overview of Mainstream Methods
 
-Currently common preference alignment methods mainly include the following categories:
+Common preference alignment methods fall into these categories:
 
-- **RLHF**: first build preference data and a reward model, then update the policy model via reinforcement learning; it is the most classic preference alignment route.
-- **DPO**: directly optimizes the model using preference data, without explicitly training a reward model; the training pipeline is relatively simpler.
-- **KTO**: also belongs to direct preference optimization methods, placing more emphasis on making the model form a stable distinction between "good answers" and "bad answers".
+- RLHF: build preference data and a reward model first. Then update the policy model via reinforcement learning. This is the most classic preference alignment route.
+- DPO: optimize the model directly with preference data. No reward model needs explicit training, so the training pipeline is relatively simpler.
+- KTO: this method also belongs to direct preference optimization. It emphasizes a stable distinction between "good answers" and "bad answers".
 
-Although these methods differ in details, they all rely on high-quality preference data, and they are usually built on top of SFT models.
+These methods differ in details. They all rely on high-quality preference data and usually build on top of SFT models.
 
 ### 6.4.3 Connection with the Earlier Parts of This Chapter
 
-From an engineering implementation perspective, preference alignment is not a completely independent new system; rather, it is built on top of the content of the previous sections of this chapter:
+From an engineering view, preference alignment is not a completely independent new system. It builds on the content of the previous sections of this chapter:
 
-1. In `6.1`, we have already learned how to initialize models, process data, and organize the training pipeline based on Transformers.
-2. In `6.2`, we have completed SFT data construction and supervised training; this step is usually the starting model before preference alignment.
-3. In `6.3`, we introduced LoRA/QLoRA and how to integrate with `peft`; these methods can likewise be used for preference alignment tasks such as DPO and KTO to reduce training costs.
+1. In `6.1`, we learned how to initialize models, process data, and organize the training pipeline on Transformers.
+2. In `6.2`, we completed SFT data construction and supervised training. This step usually gives the starting model before preference alignment.
+3. In `6.3`, we introduced LoRA/QLoRA and how to integrate with `peft`. You can also use these methods for preference alignment tasks such as DPO and KTO to reduce training costs.
 
-Therefore, when you further practice preference alignment, the truly new core content mainly lies in preference data organization, reward modeling, and the design of preference loss functions, while model loading, parameter-efficient training, and most engineering configurations can reuse the ideas from the earlier sections.
+When you practice preference alignment further, the new core content lies mainly in preference data organization, reward modeling, and the design of preference loss functions. Model loading, parameter-efficient training, and most engineering configurations can reuse the ideas from the earlier sections.
 
 ### 6.4.4 Learning and Practice Advice
 
-If you are systematically learning LLM training for the first time, it is recommended to first fully master this chapter's Pretrain, SFT, and PEFT content, and then continue reading the preference alignment supplementary material [`6.4 Preference Alignment`](./6.4%5BWIP%5D%20偏好对齐.md). In terms of practice, it is recommended to start first with lighter-weight preference optimization methods such as DPO, and then gradually understand the complete chain of reward models and RLHF. In this way, you can build an overall understanding of the post-training pipeline without significantly increasing engineering complexity.
+If you learn LLM training systematically for the first time, master this chapter's Pretrain, SFT, and PEFT content fully first. Then read the preference alignment supplementary material [`6.4 Preference Alignment`](./6.4%5BWIP%5D%20偏好对齐.md). For practice, start with lighter preference optimization methods such as DPO first. Then build an understanding of the full chain of reward models and RLHF. In this way, you get an overall understanding of the post-training pipeline without a large increase in engineering complexity.
 
-**References**
+The sources for this chapter are listed below.
 
 [1] Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin de Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly. (2019). *Parameter-Efficient Transfer Learning for NLP.* arXiv preprint arXiv:1902.00751.
 

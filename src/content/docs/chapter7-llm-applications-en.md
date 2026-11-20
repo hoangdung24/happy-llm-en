@@ -2,52 +2,52 @@
 title: "Chapter 7: LLM Applications"
 ---
 
-In the previous chapters, we systematically introduced the foundational knowledge of large models, training methods, and fine-tuning techniques. This chapter focuses on the key technologies and frameworks for applying large models in practice, covering core topics such as large model evaluation, RAG (Retrieval-Augmented Generation), and Agent (intelligent agent), helping readers deeply understand the practical application scenarios and implementation methods of large models.
+The previous chapters introduced the foundational knowledge of large models, training methods, and fine-tuning techniques. This chapter focuses on the key technologies and frameworks for applying large models in practice. It covers core topics such as large model evaluation, RAG (Retrieval-Augmented Generation), and Agent (intelligent agent). These topics help readers understand the practical application scenarios and implementation methods of large models.
 
 ## 7.1 Evaluation of LLMs
 
-In recent years, with the rapid development of the field of artificial intelligence, large-scale pre-trained language models (referred to as large models) have become a core force driving technological progress. These large models have demonstrated astonishing capabilities in natural language processing and other tasks. However, to accurately measure the performance of a large model, one must rely on scientific and reasonable evaluation.
+In recent years, the field of artificial intelligence has developed fast. Large-scale pre-trained language models (called large models) have become a core force of technological progress. These large models show strong capabilities in natural language processing and other tasks. However, to measure the performance of a large model accurately, one must use scientific and reasonable evaluation.
 
-What is large model evaluation? Large model evaluation quantifies and compares the performance of large models across different tasks through various standardized methods and datasets. These evaluations cover not only the model's accuracy on specific tasks but also aspects such as the model's generalization ability, inference speed, and resource consumption. Through evaluation, we can gain a more comprehensive understanding of the actual performance of large models and their application potential in the real world.
+What is large model evaluation? Large model evaluation quantifies and compares the performance of large models across different tasks. It uses many standardized methods and datasets. These evaluations cover the accuracy of the model on specific tasks. They also cover the generalization ability, inference speed, and resource consumption of the model. Through evaluation, we can understand the actual performance of large models and their application potential in the real world.
 
-The development of large models is costly, involving substantial computational resources and data, so evaluation is essential to ensure the model's practical value. First, evaluation reveals the model's performance across various tasks, helping researchers and enterprises judge the model's applicability and reliability. Second, evaluation can expose potential weaknesses of the model, such as bias and robustness issues, providing a basis for further optimization and improvement. In addition, fair and open evaluation provides a common standard for academia and industry, promoting the exchange and advancement of technology.
+The development of large models is costly. It needs substantial computational resources and data, so evaluation is essential to make sure that the model has practical value. First, evaluation shows the performance of the model across various tasks. It helps researchers and enterprises judge the applicability and reliability of the model. Second, evaluation can expose potential weaknesses of the model, such as bias and robustness issues. It provides a basis for further optimization and improvement. In addition, fair and open evaluation provides a common standard for academia and industry. It promotes the exchange and advancement of technology.
 
 ### 7.1.1 Evaluation Datasets for LLMs
 
-In the evaluation of large models, using standardized evaluation sets is crucial. Currently, mainstream large model evaluation sets primarily assess the following aspects, and each evaluation set has its unique purpose and typical application scenarios:
+In the evaluation of large models, standardization of the evaluation sets is essential. Current mainstream evaluation sets for large models assess the following aspects. Each evaluation set has its unique purpose and typical application scenarios:
 
-1. **General Evaluation Sets**:
-   - **MMLU (Massive Multitask Language Understanding)**: MMLU evaluates the model's understanding ability across a variety of tasks, covering various disciplines and knowledge domains. It specifically includes task types such as history, mathematics, physics, biology, and law, comprehensively examining the model's knowledge reserves and language comprehension ability across different disciplines.
+1. General Evaluation Sets:
+   - MMLU (Massive Multitask Language Understanding). MMLU evaluates the understanding ability of the model across a variety of tasks. It covers various disciplines and knowledge domains. The tasks include history, mathematics, physics, biology, and law. The evaluation examines the knowledge reserves and the language comprehension ability of the model across different disciplines.
 
-2. **Tool-Use Evaluation Sets**:
-   - **BFCL V2**: Used to evaluate the model's performance in complex tool-use tasks, especially the correctness and efficiency when performing multi-step operations. These tasks usually involve interacting with databases or executing specific instructions to simulate real-world tool-use scenarios.
+2. Tool-Use Evaluation Sets:
+   - BFCL V2. This set evaluates the performance of the model in complex tool-use tasks. It focuses on correctness and efficiency during multi-step operations. These tasks usually involve interaction with databases or execution of specific instructions. They simulate real-world tool-use scenarios.
 
-3. **Mathematics Evaluation Sets**:
-   - **GSM8K**: GSM8K is a dataset containing elementary school math problems, used to test the model's mathematical reasoning and logical analysis abilities. Specific tasks include arithmetic operations, simple equation solving, numerical reasoning, etc. Although the problems in GSM8K seem simple, the model needs to understand the problem semantics and perform correct mathematical operations, reflecting the dual challenge of logical reasoning and language understanding.
-   - **MATH**: The MATH dataset is used to test the model's performance on more complex mathematical problems, including algebra and geometry.
+3. Mathematics Evaluation Sets:
+   - GSM8K. GSM8K is a dataset of elementary school math problems. It tests the mathematical reasoning and logical analysis abilities of the model. Specific tasks include arithmetic operations, simple equation solving, and numerical reasoning. The problems in GSM8K seem simple. However, the model must understand the problem semantics and perform correct mathematical operations. This shows the dual challenge of logical reasoning and language understanding.
+   - MATH. The MATH dataset is used to test the model's performance on more complex mathematical problems, including algebra and geometry.
 
-4. **Reasoning Evaluation Sets**:
-   - **ARC Challenge**: ARC Challenge evaluates the model's performance on scientific reasoning tasks, especially the answers to commonsense and scientific questions. Typical application scenarios include solving science exam questions and developing encyclopedia Q&A systems.
-   - **GPQA**: Used to evaluate the model's ability to answer open-ended questions in zero-shot conditions. It is usually applied in customer service chatbots and knowledge Q&A systems, helping the model give reasonable answers when specific domain data is lacking.
-   - **HellaSwag**: Evaluates the model's ability to choose the most logically consistent answer in complex contexts. It is suitable for scenarios requiring high-level understanding and reasoning, such as story continuation and dialogue generation.
+4. Reasoning Evaluation Sets:
+   - ARC Challenge. ARC Challenge evaluates the performance of the model on scientific reasoning tasks. It focuses on the answers to commonsense and scientific questions. Typical application scenarios include solving science exam questions and developing encyclopedia Q&A systems.
+   - GPQA. This set evaluates the ability of the model to answer open-ended questions in zero-shot conditions. It usually applies to customer service chatbots and knowledge Q&A systems. It helps the model give reasonable answers when specific domain data is lacking.
+   - HellaSwag. This set evaluates the ability of the model to choose the most logically consistent answer in complex contexts. It is suitable for scenarios that need high-level understanding and reasoning, such as story continuation and dialogue generation.
 
-5. **Long-Text Understanding Evaluation Sets**:
-   - **InfiniteBench/En.MC**: Evaluates the model's ability to handle long-text reading comprehension, especially the understanding of scientific literature. It is suitable for application scenarios such as automatic summarization of academic literature and long-form report analysis.
-   - **NIH/Multi-needle**: Used to test the model's understanding and summarization abilities in multi-sample long-document environments. It is applied to scenarios requiring the processing of massive information, such as interpreting government reports and analyzing long internal corporate documents.
+5. Long-Text Understanding Evaluation Sets:
+   - InfiniteBench/En.MC. This set evaluates the ability of the model to handle long-text reading comprehension. It focuses on the understanding of scientific literature. It is suitable for application scenarios such as automatic summarization of academic literature and long-form report analysis.
+   - NIH/Multi-needle. This set tests the understanding and summarization abilities of the model in multi-sample long-document environments. It applies to scenarios that need the processing of massive information, such as interpreting government reports and analyzing long internal corporate documents.
 
-6. **Multilingual Evaluation Sets**:
-   - **MGSM**: Used to assess the model's ability to solve mathematical problems in different languages, examining the model's multilingual adaptability. It is especially suitable for math education in international environments and cross-language technical support scenarios.
+6. Multilingual Evaluation Sets:
+   - MGSM. This set assesses the ability of the model to solve mathematical problems in different languages. It examines the multilingual adaptability of the model. It is especially suitable for math education in international environments and for cross-language technical support scenarios.
 
-The diversity of these evaluation sets helps us comprehensively assess the performance of large models across different tasks and application scenarios, ensuring that models remain efficient and accurate when handling diverse tasks. For example, in the MMLU evaluation, some large models perform excellently on subject tasks such as history and physics, demonstrating a deep understanding of multi-domain knowledge; in the GSM8K math evaluation, the latest large models perform close to or even surpass some human baselines in arithmetic and equation solving, showing potential in complex mathematical reasoning tasks. These actual evaluation results demonstrate the models' progress and application potential in various complex tasks.
+The diversity of these evaluation sets helps us assess the performance of large models across different tasks and application scenarios. It makes sure that models remain efficient and accurate when they handle diverse tasks. For example, in the MMLU evaluation, some large models perform excellently on subject tasks such as history and physics. This result shows a deep understanding of multi-domain knowledge. In the GSM8K math evaluation, the latest large models perform close to or even above some human baselines in arithmetic and equation solving. This result shows potential in complex mathematical reasoning tasks. These actual evaluation results show the progress and application potential of the models in various complex tasks.
 
 
 ### 7.1.2 Mainstream Evaluation Leaderboards
 
-The evaluation of large models is not limited to using specific datasets. Many institutions also publish model leaderboards based on evaluation results. These leaderboards provide an important reference for academia and industry, helping them understand the current cutting-edge technologies and models. The following are some mainstream evaluation leaderboards:
+The evaluation of large models is not limited to specific datasets. Many institutions also publish model leaderboards based on evaluation results. These leaderboards provide an important reference for academia and industry. They help these groups understand the current cutting-edge technologies and models. The following are some mainstream evaluation leaderboards:
 
 #### Open LLM Leaderboard
 
-The Open LLM Leaderboard is an open leaderboard provided by Hugging Face. It aggregates the evaluation results of multiple open-source large models, helping users understand the performance of different models on various tasks. The leaderboard evaluates model performance through multiple standardized test sets and reflects the latest technological progress through continuous updates, providing researchers and developers with a high-value comparison reference, as shown in Figure 7.1.
+The Open LLM Leaderboard is an open leaderboard from Hugging Face. It aggregates the evaluation results of multiple open-source large models. It helps users understand the performance of different models on various tasks. The leaderboard evaluates model performance through multiple standardized test sets. Continuous updates reflect the latest technological progress. The result is a high-value comparison reference for researchers and developers, as shown in Figure 7.1.
 
 <div align='center'>
     <img src="/images/7-images/7-1-Open-LLM-Leaderboard.webp" alt="Figure 7.1 Open LLM Leaderboard" width="1119" height="1071" loading="lazy" decoding="async" />
@@ -56,7 +56,7 @@ The Open LLM Leaderboard is an open leaderboard provided by Hugging Face. It agg
 
 #### Lmsys Chatbot Arena Leaderboard
 
-The chatbot evaluation leaderboard provided by LMSYS showcases the abilities of various large models in dialogue tasks through multi-dimensional evaluation. The leaderboard evaluates dialogue quality through real user-model interactions, focusing on the model's natural language generation ability, contextual understanding ability, and user satisfaction. It is currently an important tool for evaluating chatbot performance, as shown in Figure 7.2.
+The chatbot evaluation leaderboard from LMSYS shows the abilities of various large models in dialogue tasks through multi-dimensional evaluation. The leaderboard evaluates dialogue quality through real user-model interactions. It focuses on the natural language generation ability of the model, its contextual understanding ability, and user satisfaction. It is currently an important tool for evaluating chatbot performance, as shown in Figure 7.2.
 
 <div align='center'>
     <img src="/images/7-images/7-1-lmsys-Chatbot-Arena-Leaderboard.webp" alt="Figure 7.2 Lmsys Chatbot Arena Leaderboard" width="1119" height="1266" loading="lazy" decoding="async" />
@@ -65,7 +65,7 @@ The chatbot evaluation leaderboard provided by LMSYS showcases the abilities of 
 
 #### OpenCompass
 
-OpenCompass is a domestic (Chinese) evaluation leaderboard that evaluates the performance of large models across multiple languages and tasks, providing a reference for applications specific to the Chinese market. The leaderboard combines tests of Chinese language understanding and multilingual capabilities to meet localization needs, with particular attention to the accuracy, robustness, and adaptability of large models in Chinese contexts, providing an important reference for domestic enterprises and researchers in selecting suitable models.
+OpenCompass is a domestic (Chinese) evaluation leaderboard. It evaluates the performance of large models across multiple languages and tasks. It provides a reference for applications specific to the Chinese market. The leaderboard combines tests of Chinese language understanding and multilingual capabilities to meet localization needs. It gives particular attention to the accuracy, robustness, and adaptability of large models in Chinese contexts. Domestic enterprises and researchers use it as an important reference for model selection.
 
 <div align='center'>
     <img src="/images/7-images/7-1-opencompass.webp" alt="Figure 7.3 OpenCompass" width="923" height="984" loading="lazy" decoding="async" />
@@ -74,17 +74,17 @@ OpenCompass is a domestic (Chinese) evaluation leaderboard that evaluates the pe
 
 ### 7.1.3 Domain-Specific Evaluation Leaderboards
 
-In addition, there are large model evaluation leaderboards targeting specific tasks in different domains, as shown in Figure 7.4. These leaderboards focus on specific application domains, helping users understand the capabilities of large models in a particular vertical field:
+In addition, there are large model evaluation leaderboards for specific tasks in different domains, as shown in Figure 7.4. These leaderboards focus on specific application domains. They help users understand the capabilities of large models in a particular vertical field:
 
-- Finance Leaderboard: Based on the CFBenchmark evaluation set, it assesses the capabilities of large models in multiple fundamental tasks such as financial natural language processing, financial predictive computation, financial analysis, and safety inspection. Provided by Tongji University together with the Shanghai Artificial Intelligence Laboratory and Dongfang Finance.
+- Finance Leaderboard: This leaderboard uses the CFBenchmark evaluation set. It assesses the capabilities of large models in multiple fundamental tasks. These tasks include financial natural language processing, financial predictive computation, financial analysis, and safety inspection. Tongji University provides it together with the Shanghai Artificial Intelligence Laboratory and Dongfang Finance.
 
-- Safety Leaderboard: Based on the Flames evaluation set, it assesses the resistance of large models across five major dimensions—fairness, safety, data protection, and legality—helping to gain deep insight into the model's performance in terms of safety. Provided by the Shanghai Artificial Intelligence Laboratory and Fudan University.
+- Safety Leaderboard: This leaderboard uses the Flames evaluation set. It assesses the resistance of large models across five major dimensions. These dimensions include fairness, safety, data protection, and legality. It helps users gain deep insight into the performance of the model in terms of safety. The Shanghai Artificial Intelligence Laboratory and Fudan University provide it.
 
-- General Knowledge Leaderboard: Based on the BotChat evaluation set, it assesses the overall degree to which large language models can generate everyday multi-turn dialogues, judging whether the model has a human-like level in conversation. Provided by the Shanghai Artificial Intelligence Laboratory.
+- General Knowledge Leaderboard: This leaderboard uses the BotChat evaluation set. It assesses how well large language models generate everyday multi-turn dialogues. It judges whether the model has a human-like level in conversation. The Shanghai Artificial Intelligence Laboratory provides it.
 
-- Legal Leaderboard: Based on the LawBench evaluation set, it assesses the model's understanding, reasoning, and application abilities in the legal domain, covering tasks such as answering legal questions, text generation, and legal case analysis. Provided by Nanjing University.
+- Legal Leaderboard: This leaderboard uses the LawBench evaluation set. It assesses the understanding, reasoning, and application abilities of the model in the legal domain. It covers tasks such as answering legal questions, text generation, and legal case analysis. Nanjing University provides it.
 
-- Medical Leaderboard: Based on the MedBench evaluation set, it assesses the performance of large language models in areas such as medical knowledge Q&A and safety and ethics understanding. Provided by the Shanghai Artificial Intelligence Laboratory.
+- Medical Leaderboard: This leaderboard uses the MedBench evaluation set. It assesses the performance of large language models in medical knowledge Q&A and in the understanding of safety and ethics. The Shanghai Artificial Intelligence Laboratory provides it.
 
 <div align='center'>
     <img src="/images/7-images/7-1-vertical-domain-leaderboard.webp" alt="Figure 7.4 Vertical Domain Leaderboards" width="1070" height="813" loading="lazy" decoding="async" />
@@ -96,19 +96,19 @@ In addition, there are large model evaluation leaderboards targeting specific ta
 
 ### 7.2.1 Basic Principles of RAG
 
-Large language models (LLMs), despite having powerful language understanding and generation capabilities, face several challenges when generating content. For example, LLMs sometimes generate inaccurate or misleading content, which is known as the large model "hallucination". In addition, the training data the model relies on may be outdated, especially when facing the latest information, making it difficult to guarantee the accuracy and timeliness of the generated results. For specialized domain knowledge, LLMs also process it inefficiently and cannot deeply understand complex domain knowledge. Therefore, how to improve the generation quality and efficiency of large models has become an important research direction.
+Large language models (LLMs) have strong language understanding and generation capabilities. However, they face several challenges when they generate content. For example, LLMs sometimes generate inaccurate or misleading content. This is known as the large model "hallucination". In addition, the training data that the model relies on can be outdated. When it faces the latest information, it is difficult to guarantee the accuracy and timeliness of the generated results. LLMs also process specialized domain knowledge inefficiently. They cannot deeply understand complex domain knowledge. Therefore, how to improve the generation quality and efficiency of large models has become an important research direction.
 
-Against this background, Retrieval-Augmented Generation (RAG) technology emerged, becoming a major innovation trend in the AI field. Before generating an answer, RAG first retrieves relevant information from an external large-scale document database and integrates this information into the generation process, thereby guiding and optimizing the language model's output. This process not only greatly improves the accuracy and relevance of content generation but also makes the generated content better meet real-time requirements.
+Against this background, Retrieval-Augmented Generation (RAG) technology emerged. It became a major innovation trend in the AI field. Before it generates an answer, RAG retrieves relevant information from an external large-scale document database. It integrates this information into the generation process. This guides and optimizes the output of the language model. This process greatly improves the accuracy and relevance of content generation. It also makes the generated content better meet real-time requirements.
 
-The core principle of RAG lies in combining "retrieval" with "generation": when a user poses a query, the system first uses the retrieval module to find text fragments related to the question, then passes these fragments to the language model as additional information, and the model generates a more precise and reliable answer based on them. In this way, RAG effectively alleviates the "hallucination" problem of large language models, because the generated content is grounded in real documents, making the answers more traceable and credible. Meanwhile, since up-to-date information sources are introduced, RAG technology greatly accelerates knowledge updates, allowing the system to timely absorb and reflect the latest domain developments.
+The core principle of RAG combines "retrieval" with "generation". A user poses a query. The system then uses the retrieval module to find text fragments related to the question. It passes these fragments to the language model as additional information. The model generates a more precise and reliable answer based on them. In this way, RAG effectively alleviates the "hallucination" problem of large language models. The generated content is grounded in real documents, so the answers are more traceable and credible. Meanwhile, up-to-date information sources are introduced. RAG technology therefore greatly accelerates knowledge updates. The system can absorb and reflect the latest domain developments in time.
 
 ### 7.2.2 Building a RAG Framework
 
-Next, I will guide you step by step to implement a simple RAG model. This model is a simplified version based on RAG, which we call Tiny-RAG. Tiny-RAG only retains the core functions of RAG, namely retrieval and generation, with the goal of helping everyone better understand the principles and implementation of the RAG model.
+Next, I will guide you step by step to implement a simple RAG model. This model is a simplified version based on RAG. We call it Tiny-RAG. Tiny-RAG only keeps the core functions of RAG, namely retrieval and generation. The goal is to help everyone better understand the principles and implementation of the RAG model.
 
 #### Step 1: Introduction to the RAG Pipeline
 
-RAG first retrieves relevant information from a broad document database before the language model generates an answer, then uses this information to guide the generation process, thereby greatly improving the accuracy and relevance of the content. RAG effectively alleviates the hallucination problem, speeds up knowledge updates, and enhances the traceability of content generation, making large language models more practical and trustworthy in real-world applications.
+RAG first retrieves relevant information from a broad document database. Then the language model generates an answer. RAG uses this information to guide the generation process. This greatly improves the accuracy and relevance of the content. RAG effectively alleviates the hallucination problem, speeds up knowledge updates, and enhances the traceability of content generation. It makes large language models more practical and trustworthy in real-world applications.
 
 What are the basic components of RAG?
 
@@ -127,11 +127,11 @@ These are all the module contents of TinyRAG, as shown in Figure 7.5.
 
 Next, let us review what the RAG pipeline looks like:
 
-- **Indexing**: split the document library into shorter chunks and build a vector index using an encoder.
-- **Retrieval**: retrieve relevant document chunks according to the similarity between the question and the chunks.
-- **Generation**: generate the answer to the question conditioned on the retrieved context.
+- Indexing: split the document library into shorter chunks and build a vector index using an encoder.
+- Retrieval: retrieve relevant document chunks according to the similarity between the question and the chunks.
+- Generation: generate the answer to the question conditioned on the retrieved context.
 
-The flowchart is shown in Figure 7.6 below. Image source: ***[Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/pdf/2312.10997.pdf)***
+The flowchart is shown in Figure 7.6 below. Image source: [Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/pdf/2312.10997.pdf)
 
 <div align='center'>
     <img src="/images/7-images/7-2-rag.webp" alt="Figure 7.6 RAG Flowchart" width="1561" height="910" loading="lazy" decoding="async" />
@@ -140,9 +140,9 @@ The flowchart is shown in Figure 7.6 below. Image source: ***[Retrieval-Augmente
 
 #### Step 2: Document Loading and Splitting
 
-Next, we implement a class for document loading and splitting. This class is mainly used to load documents and split them into document chunks.
+Next, we implement a class for document loading and splitting. This class mainly loads documents and splits them into document chunks.
 
-Documents can be text content such as articles, books, conversations, code, for example pdf files, md files, txt files, etc. The complete code can be found in the ***[RAG/utils.py](./RAG/utils.py)*** file. This code supports loading files of types such as pdf, md, and txt; you only need to write the corresponding functions.
+Documents can be text content such as articles, books, conversations, or code. Examples are pdf files, md files, and txt files. The complete code is in the [RAG/utils.py](./RAG/utils.py) file. This code supports loading files of types such as pdf, md, and txt. You only need to write the corresponding functions.
 
 ```python
 def read_file_content(cls, file_path: str):
@@ -157,7 +157,7 @@ def read_file_content(cls, file_path: str):
         raise ValueError("Unsupported file type")
 ```
 
-After the document is read, it needs to be split. We can set a maximum Token length and split the document according to this maximum length. When splitting the document, it is best to use sentences as the unit (rough splitting by `\n`) and ensure there is some overlapping content between chunks to improve retrieval accuracy.
+After the code reads the document, it must split the document. We can set a maximum Token length and split the document according to this maximum length. When you split the document, use sentences as the unit. Split roughly by `\n`. Make sure that chunks have some overlapping content. Overlap improves retrieval accuracy.
 
 ```python
 def get_chunk(cls, text: str, max_token_len: int = 600, cover_content: int = 150):
@@ -238,9 +238,9 @@ def get_chunk(cls, text: str, max_token_len: int = 600, cover_content: int = 150
 
 #### Step 3: Vectorization
 
-First, let us implement a vectorization class by ourselves; this is the foundation of the RAG architecture. The vectorization class is mainly used to vectorize document chunks, mapping a piece of text into a vector.
+First, let us implement a vectorization class by ourselves. This is the foundation of the RAG architecture. The vectorization class mainly vectorizes document chunks. It maps a piece of text into a vector.
 
-First, we set up a `BaseEmbeddings` base class, so that when we use other models, we only need to inherit from this base class and then make modifications on top of it, which facilitates code extension.
+First, we set up a `BaseEmbeddings` base class. When we use other models, we only need to inherit from this base class and then make modifications on top of it. This approach facilitates code extension.
 
 ```python
 class BaseEmbeddings:
@@ -304,9 +304,9 @@ class BaseEmbeddings:
         return dot_product / magnitude
 ```
 
-The `BaseEmbeddings` base class has two main methods: `get_embedding` and `cosine_similarity`. `get_embedding` is used to obtain the vector representation of the text, and `cosine_similarity` is used to compute the cosine similarity between two vectors. When initializing the class, the model path and whether it is an API model are set; for example, using OpenAI's Embedding API requires setting `self.is_api=True`.
+The `BaseEmbeddings` base class has two main methods: `get_embedding` and `cosine_similarity`. `get_embedding` obtains the vector representation of the text. `cosine_similarity` computes the cosine similarity between two vectors. When the class initializes, it sets the model path and whether the model is an API model. For example, OpenAI's Embedding API needs `self.is_api=True`.
 
-Inheriting from the `BaseEmbeddings` class only requires implementing the `get_embedding` method; the `cosine_similarity` method is inherited directly. This is the benefit of writing a base class.
+Inheriting from the `BaseEmbeddings` class only requires implementation of the `get_embedding` method. The `cosine_similarity` method is inherited directly. This is the benefit of writing a base class.
 
 ```python
 class OpenAIEmbedding(BaseEmbeddings):
@@ -338,16 +338,16 @@ class OpenAIEmbedding(BaseEmbeddings):
 
 #### Step 4: Database and Vector Retrieval
 
-After completing document splitting and loading the Embedding model, we need to design a vector database to store the document chunks and their corresponding vector representations, as well as design a retrieval module to retrieve relevant document chunks based on the Query.
+After document splitting and loading of the Embedding model, we must design a vector database. The database stores the document chunks and their corresponding vector representations. We must also design a retrieval module. The module retrieves relevant document chunks based on the Query.
 
-The functions of the vector database include:
+The functions of the vector database are:
 
 - `persist`: persist and save the database.
 - `load_vector`: load the database from local storage.
 - `get_vector`: obtain the vector representation of documents.
 - `query`: retrieve relevant document chunks according to the question.
 
-The complete code can be found in the ***[/VectorBase.py](./RAG/VectorBase.py)*** file.
+The complete code is in the [/VectorBase.py](./RAG/VectorBase.py) file.
 
 ```python
 class VectorStore:
@@ -371,7 +371,7 @@ class VectorStore:
         pass
 ```
 
-The `query` method is used to vectorize the user's question, then retrieve relevant document chunks in the database and return the results.
+The `query` method vectorizes the question of the user. It then retrieves relevant document chunks in the database and returns the results.
 
 ```python
 def query(self, query: str, EmbeddingModel: BaseEmbeddings, k: int = 1) -> List[str]:
@@ -382,9 +382,9 @@ def query(self, query: str, EmbeddingModel: BaseEmbeddings, k: int = 1) -> List[
 
 #### Step 5: Large Model Module
 
-Next is the large model module, used to answer the user's question based on the retrieved documents.
+Next is the large model module. It answers the question of the user based on the retrieved documents.
 
-First, implement a base class, which makes it convenient to extend to other models.
+First, implement a base class. The base class makes extension to other models convenient.
 
 ```python
 class BaseModel:
@@ -398,7 +398,7 @@ class BaseModel:
         pass
 ```
 
-`BaseModel` contains two methods: `chat` and `load_model`. For open-source models running locally, `load_model` needs to be implemented, while API models do not need it. Here we still use the SiliconFlow large model API service platform, which is accessible to users in China. The benefit of using an API service is that users do not need local computing resources, which can greatly lower the learning threshold for learners.
+`BaseModel` contains two methods: `chat` and `load_model`. For open-source models that run locally, you must implement `load_model`. API models do not need it. Here we still use the SiliconFlow large model API service platform, which is accessible to users in China. An API service has a benefit: users do not need local computing resources. This greatly lowers the learning threshold for learners.
 
 ```python
 from openai import OpenAI
@@ -449,7 +449,7 @@ Now we can use the InternLM2 model to do RAG!
 
 #### Step 6: Tiny-RAG Demo
 
-Next, let's take a look at the Tiny-RAG Demo!
+Next, let us look at the Tiny-RAG Demo!
 
 ```python
 from VectorBase import VectorStore
@@ -500,50 +500,50 @@ print(chat.chat(question, [], content))
 
 ### 7.3.1 What is an LLM Agent?
 
-Simply put, a large model Agent is a system with an LLM as its core "brain", endowed with the abilities of autonomous planning, memory, and tool use. It is no longer just passively responding to user prompts (Prompt); instead, it can:
+Simply put, a large model Agent is a system with an LLM as its core "brain". It has the abilities of autonomous planning, memory, and tool use. It no longer only responds passively to user prompts (Prompt). Instead, it can do the following:
 
 1. Goal Understanding: receive a relatively complex or high-level goal (e.g., "Help me plan a weekend trip itinerary to Beijing and book flights and hotels").
-2. Planning: break the big goal down into a series of executable small steps (e.g., "search Beijing attractions", "check the weather", "compare flight prices", "find suitable hotels", "call the booking API", etc.).
-3. Memory: have short-term memory (remembering the context of the current task) and long-term memory (learning from and retrieving information from past interactions or external knowledge bases).
-4. Tool Use: call external APIs, plugins, or code execution environments to obtain information (such as search engines, databases), perform operations (such as sending emails, booking services), or carry out computations.
+2. Planning: break the big goal down into a series of executable small steps. Examples are "search Beijing attractions", "check the weather", "compare flight prices", "find suitable hotels", and "call the booking API".
+3. Memory: have short-term memory and long-term memory. Short-term memory remembers the context of the current task. Long-term memory learns from and retrieves information from past interactions or external knowledge bases.
+4. Tool Use: call external APIs, plugins, or code execution environments. These calls obtain information (such as search engines and databases), perform operations (such as sending emails and booking services), or carry out computations.
 5. Reflection & Iteration: (in more advanced Agents) able to evaluate its own actions and results, learn from them, and adjust subsequent plans.
 
-A traditional LLM is like a knowledgeable librarian who can only talk on paper, while an LLM Agent is more like an all-around personal assistant who not only knows a lot but can also run errands and get things done, and can even proactively think of the best solution.
+A traditional LLM is like a knowledgeable librarian who can only talk on paper. An LLM Agent is more like an all-around personal assistant. This assistant knows a lot, can run errands and get things done, and can even think of the best solution proactively.
 
 <div align='center'>
     <img src="/images/7-images/7-3-agent-how-it-works.webp" alt="Figure 7.7 How an Agent Works" width="1600" height="1375" loading="lazy" decoding="async" />
     <p>Figure 7.7 How an Agent Works</p>
 </div>
 
-By combining the powerful language understanding and generation capabilities of large language models with key modules such as planning, memory, and tool use, the LLM Agent achieves autonomy and complex task processing capabilities beyond traditional large models. This capability gives LLM Agents broad application potential in many vertical domains (such as law, healthcare, finance, etc.), as shown in Figure 7.7 illustrating how an Agent works.
+The LLM Agent combines the language understanding and generation capabilities of large language models with key modules such as planning, memory, and tool use. It achieves autonomy and complex task processing capabilities beyond traditional large models. This capability gives LLM Agents broad application potential in many vertical domains (such as law, healthcare, and finance). Figure 7.7 shows how an Agent works.
 
 ### 7.3.2 Types of LLM Agents
 
-Although the concept of LLM Agents is still evolving rapidly, based on their design philosophy and capability focus, we can roughly classify them into several categories:
+The concept of LLM Agents is still evolving rapidly. However, we can roughly classify them into several categories based on their design philosophy and capability focus:
 
 Task-Oriented Agents:
-- Characteristics: focused on completing well-defined tasks in specific domains, such as customer service, code generation, data analysis, etc.
-- Working style: usually have pre-set workflows and a specific set of callable tools. The LLM is mainly responsible for understanding user intent, filling task slots, generating responses, or calling appropriate tools.
-- Examples: chatbots specialized in restaurant reservations, coding assistants for programming support (e.g., GitHub Copilot embodies Agent characteristics in some advanced features).
+- Characteristics: focused on completion of well-defined tasks in specific domains, such as customer service, code generation, and data analysis.
+- Working style: usually have pre-set workflows and a specific set of callable tools. The LLM mainly understands user intent, fills task slots, generates responses, or calls appropriate tools.
+- Examples: chatbots specialized in restaurant reservations, and coding assistants for programming support (e.g., GitHub Copilot embodies Agent characteristics in some advanced features).
 
 Planning & Reasoning Agents:
-- Characteristics: emphasize the ability to autonomously decompose complex tasks, formulate multi-step plans, and adjust according to environmental feedback. They usually require stronger reasoning abilities.
-- Working style: often adopt specific thinking frameworks, such as ReAct (Reason+Act), letting the model first "think" (Reasoning) to analyze the current situation and needed actions, then execute "actions" (Action) by calling tools, and then proceed to the next round of thinking based on the tool's returned results. Prompt engineering techniques such as Chain-of-Thought (CoT) also form the basis of their reasoning.
-- Examples: research-oriented Agents that need to integrate multiple tools such as web search, calculators, and database queries to answer complex questions, or Agents capable of autonomously completing tasks like "write a report on topic XX, with relevant data charts".
+- Characteristics: emphasize the ability to decompose complex tasks autonomously. They formulate multi-step plans and adjust according to environmental feedback. They usually need stronger reasoning abilities.
+- Working style: often adopt specific thinking frameworks, such as ReAct (Reason+Act). The model first "thinks" (Reasoning) to analyze the current situation and the needed actions. It then executes "actions" (Action) by calling tools. After that, it proceeds to the next round of thinking based on the results returned by the tool. Prompt engineering techniques such as Chain-of-Thought (CoT) also form the basis of their reasoning.
+- Examples: research-oriented Agents that must integrate multiple tools such as web search, calculators, and database queries to answer complex questions. Other examples are Agents capable of autonomous completion of tasks like "write a report on topic XX, with relevant data charts".
 
 Multi-Agent Systems:
-- Characteristics: composed of multiple Agents with different roles or capabilities working collaboratively to jointly accomplish a grander goal.
+- Characteristics: composed of multiple Agents with different roles or capabilities. They work collaboratively to jointly accomplish a grander goal.
 - Working style: Agents can communicate, collaborate, debate, or even compete with each other. For example, one Agent is responsible for planning, one for execution, and one for review.
-- Examples: simulating a software development team (Product Manager Agent, Programmer Agent, Tester Agent) to automatically generate and test code; simulating a corporate organizational structure to complete business planning. Frameworks such as AutoGen and ChatDev support building such systems.
+- Examples: simulation of a software development team (Product Manager Agent, Programmer Agent, Tester Agent) that automatically generates and tests code. Another example is simulation of a corporate organizational structure to complete business planning. Frameworks such as AutoGen and ChatDev support building such systems.
 
 Exploration & Learning Agents:
-- Characteristics: these Agents not only execute tasks but can also actively learn new knowledge, new skills, or optimize their own strategies through interaction with the environment, similar to the Agent concept in reinforcement learning.
-- Working style: may include more complex memory and reflection mechanisms, able to adjust future planning and actions based on experiences of success or failure.
-- Examples: Agents that can autonomously explore and learn how to operate in an unknown software environment, or Agents that continuously improve their strategy while playing games.
+- Characteristics: these Agents execute tasks. They can also learn new knowledge and new skills, or optimize their own strategies through interaction with the environment. This behavior is similar to the Agent concept in reinforcement learning.
+- Working style: these Agents can have more complex memory and reflection mechanisms. They can adjust future planning and actions based on experiences of success or failure.
+- Examples: Agents that can explore an unknown software environment autonomously and learn how to operate in it. Other examples are Agents that continuously improve their strategy while they play games.
 
 ### 7.3.3 Hands-On: Building a Tiny-Agent
 
-We will build a Tiny-Agent based on the `openai` library and its `tool_calls` functionality. This Agent is a simple task-oriented Agent that can answer some simple questions based on user input.
+We will build a Tiny-Agent based on the `openai` library and its `tool_calls` functionality. This Agent is a simple task-oriented Agent. It can answer some simple questions based on user input.
 
 The final implementation effect is shown in Figure 7.8:
 
@@ -554,7 +554,7 @@ The final implementation effect is shown in Figure 7.8:
 
 #### Step 1: Initialize the Client and Model
 
-First, we need a client capable of calling large models. Here we use the `openai` library and configure it to point to a service endpoint compatible with the OpenAI API, such as [SiliconFlow](https://cloud.siliconflow.cn/i/ybUFvmqK). Meanwhile, specify the model to use, such as `Qwen/Qwen2.5-32B-Instruct`.
+First, we need a client that can call large models. Here we use the `openai` library and configure it to point to a service endpoint compatible with the OpenAI API, such as [SiliconFlow](https://cloud.siliconflow.cn/i/ybUFvmqK). Meanwhile, specify the model to use, such as `Qwen/Qwen2.5-32B-Instruct`.
 
 ```python
 from openai import OpenAI
@@ -569,11 +569,11 @@ client = OpenAI(
 model_name = "Qwen/Qwen2.5-32B-Instruct"
 ```
 
-> **Note:** You need to replace `YOUR_API_KEY` with a valid API Key obtained from [SiliconFlow](https://cloud.siliconflow.cn/i/ybUFvmqK) or another provider.
+> Note: You need to replace `YOUR_API_KEY` with a valid API Key obtained from [SiliconFlow](https://cloud.siliconflow.cn/i/ybUFvmqK) or another provider.
 
 #### Step 2: Define Tool Functions
 
-We define the tool functions the Agent can use in the `src/tools.py` file. Each function needs a clear docstring describing its functionality and parameters, because this will be used to automatically generate the tool's JSON Schema.
+We define the tool functions that the Agent can use in the `src/tools.py` file. Each function needs a clear docstring that describes its functionality and parameters. The code uses the docstring to generate the JSON Schema of the tool automatically.
 
 ```python
 # src/tools.py
@@ -623,7 +623,7 @@ def search_wikipedia(query: str) -> str:
 # ... (there may be other tool functions as well)
 ```
 
-For the OpenAI API to understand these tools, we need to convert them into a specific JSON Schema format. This can be done with the `function_to_json` helper function in `src/utils.py`.
+For the OpenAI API to understand these tools, we must convert them into a specific JSON Schema format. The `function_to_json` helper function in `src/utils.py` does this conversion.
 
 ```python
 # src/utils.py (partial)
@@ -648,7 +648,7 @@ def function_to_json(func) -> dict:
 
 #### Step 3: Build the Agent Class
 
-We define the `Agent` class in the `src/core.py` file. This class is responsible for managing the conversation history, calling the OpenAI API, handling tool call requests, and executing tool functions.
+We define the `Agent` class in the `src/core.py` file. This class manages the conversation history, calls the OpenAI API, handles tool call requests, and executes tool functions.
 
 ```python
 # src/core.py (partial)
@@ -733,9 +733,9 @@ class Agent:
 The Agent's workflow is as follows:
 
 1.  Receive user input.
-2.  Call the large model (e.g., Qwen), informing it of the available tools and their Schemas.
+2.  Call the large model (e.g., Qwen). Inform it of the available tools and their Schemas.
 3.  If the model decides to call a tool, the Agent parses the request and executes the corresponding Python function.
-4.  The Agent returns the tool's execution result to the model.
+4.  The Agent returns the execution result of the tool to the model.
 5.  The model generates the final reply based on the tool result.
 6.  The Agent returns the final reply to the user.
 
@@ -748,7 +748,7 @@ As shown in Figure 7.9, the Agent tool-calling workflow:
 
 #### Step 4: Run the Agent
 
-Now we can instantiate and run the Agent. A simple command-line interaction example is provided in the `if __name__ == "__main__":` section of `demo.py`.
+Now we can instantiate and run the Agent. The `if __name__ == "__main__":` section of `demo.py` provides a simple command-line interaction example.
 
 ```python
 # demo.py (partial)
@@ -776,7 +776,7 @@ if __name__ == "__main__":
         print("\033[92mAssistant: \033[0m", response)  # Show the AI assistant's answer in green
 ```
 
-**Example interaction:**
+Example interaction:
 
 ```bash
 User: 你好  # (Gloss: "Hello")
@@ -798,7 +798,7 @@ Assistant:  当前的时间是2025年4月26日17:01:33。不过，我注意到�
 User: exit
 ```
 
-In addition, we have also prepared a Streamlit app for demonstration, which can run locally to showcase the Agent's capabilities. Run it with `streamlit run web_demo.py`. The following shows the Agent's running effect.
+In addition, we have also prepared a Streamlit app for demonstration. It can run locally to show the capabilities of the Agent. Run it with `streamlit run web_demo.py`. The following shows the running effect of the Agent.
 
 <div align='center'>
     <img src="/images/7-images/7-3-streamlit-demo.webp" alt="Figure 7.10 Streamlit Demo" width="1562" height="1494" loading="lazy" decoding="async" />
@@ -806,7 +806,7 @@ In addition, we have also prepared a Streamlit app for demonstration, which can 
 </div>
 
 
-**References**
+The sources for this chapter are listed below.
 
 [1] Hugging Face. (2023). *Open LLM Leaderboard: 开源大语言模型基准测试平台* [Open LLM Leaderboard: A Benchmark Testing Platform for Open-Source Large Language Models]. https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard  
 

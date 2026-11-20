@@ -2,26 +2,26 @@
 title: "Chapter 8: LLM Reinforcement Learning"
 ---
 
-In Chapter 4, starting from Reinforcement Learning from Human Feedback (RLHF), we introduced the reward model, Proximal Policy Optimization (PPO), and the basic pipeline of instruction alignment. Chapter 6 further laid the engineering foundations of large language model training, and Chapter 7 gave the model the abilities of planning, memory, and tool calling.
+Chapter 4 introduced Reinforcement Learning from Human Feedback (RLHF), the reward model, Proximal Policy Optimization (PPO), and the basic pipeline of instruction alignment. Chapter 6 built the engineering foundations of large language model training. Chapter 7 gave the model planning, memory, and tool calling.
 
-Once an Agent genuinely enters environments such as search and code execution, supervised fine-tuning alone can hardly cover all possible interaction trajectories. The model needs to try actions itself, judge whether a trajectory is valid based on the final outcome, and then update successful experience into the policy. Large language model reinforcement learning has thus gradually moved from "making answers better match preferences" toward "letting the model learn to act in an environment."
+An Agent in a real environment, such as search or code execution, meets far more interaction paths than supervised fine-tuning can cover. The model must try actions itself. It must judge whether a path is valid from the final outcome. It must then write successful experience into the policy. Large language model reinforcement learning thus moves from "make answers match preferences" toward "let the model learn to act in an environment."
 
-This chapter is organized around four interconnected topics. First, we introduce Group Relative Policy Optimization (GRPO), which is widely used in current large language model reinforcement learning, building a complete picture of rollout, reward, advantage, and policy updates; next, we introduce On-Policy Distillation (OPD), observing how the Student continuously receives the Teacher's token-by-token guidance on its own state distribution; finally, using Search-R1 and ReTool as examples, we extend the same training framework to search engines and code interpreters, completing two runnable Agentic RL practices.
+This chapter covers four connected topics. First, Group Relative Policy Optimization (GRPO), which is common in current large language model reinforcement learning. The chapter builds its full picture of rollout, reward, advantage, and policy update. Next, On-Policy Distillation (OPD), where the Student receives the Teacher's token-by-token guidance on its own state distribution. Finally, the Search-R1 and ReTool examples, which extend the same training framework to search engines and code interpreters, for two runnable Agentic RL practices.
 
 <div align='center'>
     <img src="/images/8-images/8-1-chapter-roadmap.webp" alt="Chapter 8 content structure" width="1600" height="1082" loading="lazy" decoding="async" />
     <p>Figure 8.1 Structure of Chapter 8</p>
 </div>
 
-All examples in this chapter use PyTRIO 0.2.6. PyTRIO connects local data processing, environment interaction, and training control with remote model sampling, forward/backward passes, and weight management. Although the four examples differ in task, the core pipeline can always be summarized as:
+All examples in this chapter use PyTRIO 0.2.6. PyTRIO joins local data processing, environment interaction, and training control to remote model sampling, forward and backward passes, and weight management. The four examples differ in task, but the core pipeline is always:
 
-1. Use the current policy to generate one trajectory or a group of trajectories;
-2. Compute the training signal from outcomes or Teacher feedback;
-3. Align the prompt, response, old-policy logprobs, and advantage into a `Datum`;
-4. Call `forward_backward()` and `optim_step()` to update the policy;
+1. Use the current policy to generate one trajectory or a group of trajectories.
+2. Compute the training signal from outcomes or Teacher feedback.
+3. Put the prompt, the response, the old-policy logprobs, and the advantage into one `Datum`.
+4. Call `forward_backward()` and `optim_step()` to update the policy.
 5. Refresh the sampling client so that the next round of rollouts uses the new weights.
 
-The accompanying code is located in `docs/chapter8`. Install the common dependencies from the repository root:
+The code is in `docs/chapter8`. Install the common dependencies from the repository root:
 
 ```bash
 uv venv --python 3.13
@@ -30,7 +30,7 @@ uv pip install -r docs/chapter8/requirements.txt
 trio login
 ```
 
-The models supported by the PyTRIO service are updated continuously; before running formal experiments, you can use the following code to view the current list:
+The PyTRIO service adds new models over time. Before a full experiment, you can list the current models with this code:
 
 ```python
 import pytrio as trio
@@ -39,23 +39,23 @@ service_client = trio.ServiceClient()
 print(service_client.get_supported_models())
 ```
 
-> **Further reading:** If you want to learn more about Agentic RL algorithms and runnable practices, you can read another open-source project maintained by the author, [agentic-rl-lab](https://github.com/KMnO4-zx/agentic-rl-lab). In addition to the content covered in this chapter, that repository also includes principle breakdowns, training code, and experiment records for OPSD, DAPO, GSPO, ALFWorld, and other algorithms and environments.
+> Further reading: For more on Agentic RL algorithms and runnable practice, you can read [agentic-rl-lab](https://github.com/KMnO4-zx/agentic-rl-lab), another open-source project from the author. That repository also gives principle breakdowns, training code, and experiment records for OPSD, DAPO, GSPO, ALFWorld, and other algorithms and environments.
 
-> Note: The author chose PyTrio rather than Verl for this chapter's examples, with the aim of lowering the engineering barrier and experimental cost of Agentic RL. Following the minimal trial-run configuration in this chapter, the author strives to keep the base experiment budget of the four examples within 200 RMB, so that readers can personally run through the closed loop of rollout, reward, advantage, and policy update. Actual costs vary with the model, sampling length, number of training steps, and evaluation scale.
+> Note: The author chose PyTrio and not Verl for the examples in this chapter. The aim is a lower engineering barrier and a lower experimental cost for Agentic RL. With the minimal trial-run configuration of this chapter, the author keeps the base experiment budget of the four examples within 200 RMB. A reader can then run the full loop of rollout, reward, advantage, and policy update in person. The actual cost varies with the model, the sampling length, the number of training steps, and the evaluation scale.
 
 ## 8.1 GRPO
 
-> **Code source:** This section is based on `01-demo-sync.py` and `02-demo-async.py` in the author's open-source repository [agentic-rl-lab/01-grpo](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/01-grpo). The main text explains the synchronous version `01-demo-sync.py` section by section; the asynchronous version is preserved as a complete companion implementation.
+> Code source: This section uses `01-demo-sync.py` and `02-demo-async.py` from [agentic-rl-lab/01-grpo](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/01-grpo), an open-source repository from the author. The text explains the synchronous version `01-demo-sync.py` section by section. The asynchronous version is kept as a complete companion implementation.
 
-GRPO was first systematically proposed in DeepSeekMath. It retains PPO's on-policy update idea while using a group of sampled results for the same question to estimate relative advantages, thereby eliminating the need to train a separate Value Model. For math, code, and logic tasks with verifiable answers, this method can directly use outcome rewards and has become one of the most common foundational algorithms in large language model reinforcement learning.
+GRPO first appeared in a systematic form in DeepSeekMath. It keeps the on-policy update of PPO. It also estimates relative advantages from a group of sampled results for the same question. In this way it removes the need to train a separate Value Model. For math, code, and logic tasks with verifiable answers, the method can use outcome rewards directly. It is now one of the most common base algorithms in large language model reinforcement learning.
 
 ### 8.1.1 From Language Model to Reinforcement Learning Policy
 
-An autoregressive language model receives a prompt $x$ and sequentially generates a token sequence $y=(y_1,y_2,\ldots,y_T)$. From the perspective of probabilistic modeling, the probability of a complete response can be written as:
+An autoregressive language model receives a prompt $x$ and generates a token sequence $y=(y_1,y_2,\ldots,y_T)$ one token at a time. In a probabilistic model, the probability of a complete response is:
 
 $$\pi_\theta(y\mid x) = \prod_{t=1}^{T} \pi_\theta(y_t\mid x,y_{\lt t}),$$
 
-where $\pi_\theta$ denotes the language model policy parameterized by $\theta$. Placing the language model into the reinforcement learning framework yields the correspondence shown in Table 8.1.
+Here $\pi_\theta$ is the language model policy with parameters $\theta$. Table 8.1 shows how the language model maps onto the reinforcement learning framework.
 
 | Reinforcement learning concept | Meaning in a large language model |
 | --- | --- |
@@ -66,50 +66,50 @@ where $\pi_\theta$ denotes the language model policy parameterized by $\theta$. 
 | Environment | Dataset graders, search engines, code interpreters, etc. |
 | Reward $R(\tau)$ | Feedback such as answer correctness, format, and tool execution results |
 
-One model generation is usually called a rollout. The goal of training is to raise the probability of actions appearing in high-reward trajectories while lowering the probability of actions appearing in low-reward trajectories. The most intuitive form of the policy gradient is:
+One model generation is usually called a rollout. Training raises the probability of actions in high-reward trajectories. It lowers the probability of actions in low-reward trajectories. The most intuitive form of the policy gradient is:
 
 $$\nabla_\theta J(\theta) = \mathbb{E}_{\tau\sim\pi_\theta} \left[ A(\tau) \nabla_\theta \log \pi_\theta(\tau) \right],$$
 
-where $A(\tau)$ is the advantage function. A positive advantage means this trajectory is relatively worth encouraging; a negative advantage means the current policy should reduce similar behavior.
+Here $A(\tau)$ is the advantage function. A positive advantage means the trajectory is worth encouraging. A negative advantage means the current policy must reduce similar behavior.
 
-The action space of a large language model is the entire vocabulary, and a single response may contain hundreds to thousands of tokens. During training we must also control the magnitude of change between the old and new policies, preventing a single update from destroying the model's existing capabilities. Therefore, the truly difficult parts usually concentrate on two questions: how to obtain stable advantages, and how to safely use those advantages to update the policy.
+The action space of a large language model is the entire vocabulary. A single response can hold hundreds to thousands of tokens. Training must also limit the change between the old policy and the new policy. A single update must not destroy the existing abilities of the model. The real difficulty thus sits in two questions. How does the method obtain stable advantages? How does it use those advantages to update the policy in a safe way?
 
 ### 8.1.2 From PPO to GRPO
 
-PPO typically uses a Value Model to estimate the state value $V_\phi(s_t)$, then combines it with the return to compute the advantage. In large language model settings, the Value Model is often close in scale to the policy model, bringing additional memory, training, and synchronization costs. Value estimation errors are also further propagated into policy updates.
+PPO usually uses a Value Model to estimate the state value $V_\phi(s_t)$. It then combines that value with the return to compute the advantage. In large language models, the Value Model is often close in scale to the policy model. It adds memory cost, training cost, and synchronization cost. Errors in the value estimate also move on into the policy update.
 
-GRPO instead uses relative comparison within a group. For a question $x$, first sample $G$ responses from the old policy $\pi_{\theta_{\mathrm{old}}}$:
+GRPO uses a relative comparison inside a group. For a question $x$, it first samples $G$ responses from the old policy $\pi_{\theta_{\mathrm{old}}}$:
 
 $$\{y_1,y_2,\ldots,y_G\} \sim \pi_{\theta_{\mathrm{old}}}(\cdot\mid x).$$
 
-The grader gives rewards $r_1,r_2,\ldots,r_G$ respectively. Classic GRPO normalizes the rewards using the group mean and standard deviation:
+The grader gives rewards $r_1,r_2,\ldots,r_G$. Classic GRPO normalizes the rewards with the group mean and the group standard deviation:
 
 $$A_i = \frac{r_i-\mathrm{mean}(r_1,\ldots,r_G)}{\mathrm{std}(r_1,\ldots,r_G)+\varepsilon}.$$
 
-In this way, high-scoring responses to the same question receive positive advantages, and low-scoring responses receive negative advantages. The intrinsic difficulty of the question is offset by the group baseline, allowing the policy to focus more on learning "under the same conditions, which generation approaches are better."
+In this way, high-scoring responses to the same question receive positive advantages. Low-scoring responses receive negative advantages. The group baseline offsets the intrinsic difficulty of the question. The policy can then focus on a narrower lesson: under the same conditions, which generation approaches are better.
 
 <div align='center'>
     <img src="/images/8-images/8-2-grpo.webp" alt="GRPO group sampling and policy update" width="1600" height="1082" loading="lazy" decoding="async" />
     <p>Figure 8.2 GRPO's group sampling and policy update</p>
 </div>
 
-For example, sample 4 responses to the same math question, and a rule-based grader yields rewards $[1,0,0,1]$. The group mean is $0.5$; with mean centering only, the 4 advantages are:
+For example, sample 4 responses to the same math question. A rule-based grader gives the rewards $[1,0,0,1]$. The group mean is $0.5$. With mean centering only, the 4 advantages are:
 
 $$[0.5,-0.5,-0.5,0.5].$$
 
-The two correct responses are encouraged, and the two incorrect responses are suppressed. To directly demonstrate the group baseline, this chapter's code adopts by default:
+The two correct responses are encouraged. The two incorrect responses are suppressed. To show the group baseline directly, the code of this chapter uses this form by default:
 
 $$A_i=r_i-\bar r.$$
 
-Full experiments may also add standard-deviation normalization. The two formulations express the same idea of group-relative comparison, but their gradient scales differ; when comparing experiments, the advantage computation should be fixed.
+Full experiments can also add standard-deviation normalization. The two forms express the same idea of group-relative comparison, but their gradient scales differ. When you compare experiments, keep the advantage computation fixed.
 
-There is also a degenerate case that is easy to overlook. When all responses in a group are correct, or all are wrong, every $A_i$ equals 0, and this group of data produces no valid policy gradient. If the proportion of degenerate groups in the training logs remains high for a long time, you usually need to adjust question difficulty, sampling temperature, base model capability, or group size.
+One degenerate case is easy to miss. If all responses in a group are correct, or if all are wrong, every $A_i$ equals 0. That group then produces no valid policy gradient. If the proportion of degenerate groups in the training logs stays high for a long time, you usually must adjust four things. These are the question difficulty, the sampling temperature, the base model capability, and the group size.
 
 ### 8.1.3 Rewards and Reinforcement Learning with Verifiable Rewards
 
-GRPO only converts in-group rewards into relative advantages; reward quality still determines what the model ultimately learns. Math and code tasks can usually use deterministic rule-based graders, and such training is also called Reinforcement Learning with Verifiable Rewards (RLVR).
+GRPO only turns in-group rewards into relative advantages. The quality of the reward still decides what the model learns in the end. Math and code tasks can usually use deterministic rule-based graders. Such training is also called Reinforcement Learning with Verifiable Rewards (RLVR).
 
-This chapter uses GSM8K as an example, requiring the model to write the final numerical answer in `\boxed{}`. The minimal grading logic is as follows:
+This chapter uses GSM8K as an example. The model must write the final numerical answer in `\boxed{}`. The minimal grading logic is:
 
 ```python
 def extract_boxed(text: str) -> str | None:
@@ -130,57 +130,57 @@ def grade_answer(response: str, ground_truth: str) -> float:
     return 1.0 if normalize_answer(answer) == normalize_answer(ground_truth) else 0.0
 ```
 
-Rule-based rewards are simple, cheap, and reproducible. However, once a rule has loopholes, the model may learn to exploit them for high scores. When designing a reward, you should check at least the following:
+Rule-based rewards are simple, cheap, and reproducible. But a rule can have a loophole, and the model can learn to exploit it for a high score. When you design a reward, make sure that you check at least the following:
 
-- **Is answer extraction robust**: the same correct answer may appear as an integer, a decimal, a fraction, or a number with commas;
-- **Does the format reward outweigh correctness**: format can only serve as an auxiliary constraint; a wrong answer with correct format must not receive the main reward;
-- **Are the reference answers reliable**: wrong labels give the model training signals pointing in the opposite direction;
-- **Does the grader leak information**: the model should not be able to read the standard answer directly from the prompt or tool output;
-- **Is the reward discriminative**: large numbers of all-0 or all-1 groups strip GRPO of its relative comparison signal.
+- Is answer extraction robust: the same correct answer can appear as an integer, a decimal, a fraction, or a number with commas.
+- Does the format reward outweigh correctness: format can only serve as an auxiliary constraint. A wrong answer with correct format must not receive the main reward.
+- Are the reference answers reliable: wrong labels give the model training signals that point the opposite way.
+- Does the grader leak information: the model must not read the standard answer from the prompt or the tool output.
+- Is the reward discriminative: large numbers of all-0 or all-1 groups strip GRPO of its relative comparison signal.
 
-Before formal training, you can first save the base model's rollouts and manually inspect a batch of "response—extracted answer—reward" triples offline. This step often surfaces problems earlier than directly tuning the learning rate.
+Before formal training, save the base model rollouts first. Then inspect a batch of "response, extracted answer, reward" triples by hand. This step often surfaces a problem earlier than direct tuning of the learning rate.
 
 ### 8.1.4 Policy Ratios and the Update Loss
 
-The rollout is generated by the old policy, while the parameter update happens on the current policy. For the $t$-th token of the $i$-th response, define the probability ratio between the new and old policies:
+The old policy generates the rollout. The parameter update happens on the current policy. For the $t$-th token of the $i$-th response, the probability ratio between the new policy and the old policy is:
 
 $$\rho_{i,t}(\theta) = \frac{\pi_\theta(y_{i,t}\mid x,y_{i,\lt t})}{\pi_{\theta_{\mathrm{old}}}(y_{i,t}\mid x,y_{i,\lt t})} = \exp\left(\log\pi_\theta-\log\pi_{\theta_{\mathrm{old}}}\right).$$
 
-The most direct importance sampling objective can be written as:
+The most direct importance sampling objective is:
 
 $$J_{\mathrm{IS}}(\theta) = \mathbb{E}_{i,t} \left[\rho_{i,t}(\theta)A_i\right].$$
 
-If the probability ratio strays too far from 1, a few tokens may dominate the gradient. PPO uses a clipped objective to limit the magnitude of a single update:
+If the probability ratio moves too far from 1, a few tokens can dominate the gradient. PPO uses a clipped objective to limit the size of a single update:
 
 $$J_{\mathrm{PPO}}(\theta) = \mathbb{E}_{i,t} \left[\min\left(\rho_{i,t}A_i, \mathrm{clip}(\rho_{i,t},1-\epsilon,1+\epsilon)A_i\right)\right].$$
 
-The classic GRPO objective in DeepSeekMath adopts PPO-style clipping and adds a KL constraint relative to a reference policy. This chapter's synchronous `01-demo-sync.py` defaults to PyTRIO's built-in `importance_sampling`, making it easy to observe the data relationships among `old_logprobs`, `advantages`, and the current policy; changing the command-line argument to `--loss-fn ppo` switches to the built-in PPO loss.
+The classic GRPO objective in DeepSeekMath uses PPO-style clipping. It also adds a KL constraint relative to a reference policy. The synchronous `01-demo-sync.py` of this chapter uses PyTRIO's built-in `importance_sampling` by default. The reader can then observe the data relations among `old_logprobs`, `advantages`, and the current policy with ease. Change the command-line argument to `--loss-fn ppo` to switch to the built-in PPO loss.
 
-Therefore, GRPO and PPO should be understood at different levels:
+GRPO and PPO thus operate at two different levels:
 
-- GRPO describes how to group-sample the same question and derive advantages from in-group rewards;
-- importance sampling or PPO describes how to convert advantages into policy gradients.
+- GRPO describes how to group-sample the same question and derive advantages from in-group rewards.
+- Importance sampling or PPO describes how to turn advantages into policy gradients.
 
 ### 8.1.5 Implementing the Synchronous GRPO from Scratch
 
-This section breaks down a complete GRPO training script following the execution order of the synchronous version. The accompanying directory provides two independently runnable files:
+This section walks through a complete GRPO training script in the execution order of the synchronous version. The directory holds two files, and each one runs on its own:
 
 | File | Execution mode | Purpose |
 | --- | --- | --- |
 | `01-demo-sync.py` | Synchronous | The teaching mainline, explained section by section in the text |
 | `02-demo-async.py` | Asynchronous | Concurrently processes rollouts for different prompts in the same batch |
 
-The two files use the same data, reward, advantage, Datum, and loss. Below we only expand the synchronous version, so readers can first understand a complete update along a linear control flow.
+Both files use the same data, reward, advantage, Datum, and loss. Below, the text expands only the synchronous version, so that the reader can first follow one complete update along a linear control flow.
 
-**(1) Define the training configuration and rollout data**
+(1) Define the training configuration and rollout data
 
-The script keeps only the two policy-update losses PyTRIO directly provides, `importance_sampling` and `ppo`:
+The script keeps only the two policy-update losses that PyTRIO provides directly, `importance_sampling` and `ppo`:
 
 ```python
 LOSS_FNS = ("importance_sampling", "ppo")
 ```
 
-`GRPOConfig` centrally stores the model, sampling, optimizer, and SwanLab parameters. `RolloutSample` stores all the information a single completion needs for subsequent training:
+`GRPOConfig` stores the model, sampling, optimizer, and SwanLab parameters in one place. `RolloutSample` stores all the information that a single completion needs for the training that follows:
 
 ```python
 @dataclass
@@ -194,11 +194,11 @@ class RolloutSample:
     advantage: float
 ```
 
-The `logprobs` here must come from the Student at rollout time. Recomputing after the policy update yields new-policy logprobs, which cannot replace the old-policy probabilities. `parse_args()` converts command-line arguments into a `GRPOConfig` and restricts usage to these two built-in losses via `choices=LOSS_FNS`.
+The `logprobs` here must come from the Student at rollout time. A recomputation after the policy update yields new-policy logprobs, and these cannot replace the old-policy probabilities. `parse_args()` turns the command-line arguments into a `GRPOConfig`. It also limits the choice to the two built-in losses with `choices=LOSS_FNS`.
 
-**(2) Load GSM8K and construct the prompt**
+(2) Load GSM8K and construct the prompt
 
-GSM8K's standard answer appears after `####`. The model's output is required to put the final number in `\boxed{}`. The code applies the same lightweight normalization to both sides:
+The standard answer of GSM8K appears after `####`. The output of the model must put the final number in `\boxed{}`. The code applies the same lightweight normalization to both sides:
 
 ```python
 def extract_boxed(text: str) -> str | None:
@@ -230,7 +230,7 @@ def extract_gsm8k_answer(answer_text: str) -> str:
     return normalize_answer(match.group(1))
 ```
 
-`build_prompt()` passes a few-shot example together with the current question through the model's own chat template, then encodes it into tokens:
+`build_prompt()` passes a few-shot example and the current question through the chat template of the model. It then encodes the result into tokens:
 
 ```python
 def build_prompt(tokenizer: Any, question: str) -> list[int]:
@@ -250,11 +250,11 @@ def build_prompt(tokenizer: Any, question: str) -> list[int]:
     return prompt_tokens
 ```
 
-The training set is loaded via `load_dataset("openai/gsm8k", "main", split="train")`. `pick_batch()` allows the data to wrap around during small trial runs; once `--all-data` is enabled, each training sample is used at most once.
+The code loads the training set with `load_dataset("openai/gsm8k", "main", split="train")`. `pick_batch()` lets the data wrap around during a small trial run. When `--all-data` is enabled, each training sample is used at most once.
 
-**(3) Sample a group of responses for the same question**
+(3) Sample a group of responses for the same question
 
-`run_rollout_group()` is the core of the GRPO rollout. One `sample()` call receives a single prompt and returns a group of completions for the same question via `num_samples=group_size`:
+`run_rollout_group()` is the core of the GRPO rollout. One `sample()` call receives a single prompt. It returns a group of completions for the same question through `num_samples=group_size`:
 
 ```python
 def run_rollout_group(
@@ -306,18 +306,18 @@ def run_rollout_group(
     ]
 ```
 
-This code accomplishes four things in sequence:
+The code does four things in sequence:
 
-1. Save the completion tokens;
-2. Save the old policy's logprob for each completion token at sampling time;
-3. Use the rule-based grader to obtain a reward of 0 or 1;
+1. Save the completion tokens.
+2. Save the logprob of the old policy for each completion token at sampling time.
+3. Use the rule-based grader to obtain a reward of 0 or 1.
 4. Compute `advantage = reward - mean_reward`.
 
-When all responses in a group are correct or all are wrong, every advantage is 0. The main loop records such a group as degenerate and skips it, avoiding submitting Datums with no training signal.
+If all responses in a group are correct, or all are wrong, every advantage is 0. The main loop records such a group as degenerate and skips it. The loop then avoids submitting Datums with no training signal.
 
-**(4) Construct the right-shift-aligned PyTRIO Datum**
+(4) Construct the right-shift-aligned PyTRIO Datum
 
-An autoregressive model uses the token at the current position to predict the next token. Let the prompt length be $m$ and the completion length be $T$; the four arrays the script constructs all have length $m+T-1$:
+An autoregressive model uses the token at the current position to predict the next token. Let the prompt length be $m$ and the completion length be $T$. The four arrays that the script builds all have length $m+T-1$:
 
 ```python
 def build_grpo_datum(
@@ -354,9 +354,9 @@ def build_grpo_datum(
     )
 ```
 
-The prompt region only provides context, so `target_tokens`, `logprobs`, and `advantages` use 0 as placeholders there. The completion region holds the real target tokens, the old-policy logprobs, and the group advantage shared by the entire response.
+The prompt region only provides context, so `target_tokens`, `logprobs`, and `advantages` hold 0 as a placeholder there. The completion region holds the real target tokens, the old-policy logprobs, and the group advantage that the whole response shares.
 
-Taking 3 prompt tokens and 2 completion tokens as an example:
+Here is an example with 3 prompt tokens and 2 completion tokens:
 
 ```text
 prompt       = [x1, x2, x3]
@@ -368,11 +368,11 @@ old_logprob  = [ 0,  0, l1, l2]
 advantage    = [ 0,  0,  A,  A]
 ```
 
-The position corresponding to the last prompt token `x3` is where prediction of `y1` begins, so the prompt mask has length `len(prompt_tokens) - 1`.
+The position of the last prompt token `x3` is where the prediction of `y1` begins, so the prompt mask has length `len(prompt_tokens) - 1`.
 
-**(5) Choose importance sampling or PPO**
+(5) Choose importance sampling or PPO
 
-`importance_sampling` and `ppo` reuse the same batch of GRPO Datums; you only switch `loss_fn`. Both losses are built into PyTRIO:
+`importance_sampling` and `ppo` reuse the same batch of GRPO Datums. You only switch `loss_fn`. PyTRIO provides both losses:
 
 ```python
 fwd_bwd_future = training_client.forward_backward(
@@ -381,11 +381,11 @@ fwd_bwd_future = training_client.forward_backward(
 )
 ```
 
-When `importance_sampling` is chosen, training directly multiplies the new/old policy probability ratio by the advantage. When `ppo` is chosen, PyTRIO applies PPO clipping on the same data. GRPO's rollout, reward, and group advantage construction remain unchanged.
+If you choose `importance_sampling`, training directly multiplies the new/old policy probability ratio by the advantage. If you choose `ppo`, PyTRIO applies PPO clipping to the same data. The rollout, the reward, and the construction of the group advantage in GRPO stay the same.
 
-**(6) Assemble one round of synchronous training**
+(6) Assemble one round of synchronous training
 
-`main()` first creates the training client, sampling parameters, and optimizer:
+`main()` first creates the training client, the sampling parameters, and the optimizer:
 
 ```python
 service_client = trio.ServiceClient()
@@ -408,7 +408,7 @@ adam_params = trio.AdamParams(
 )
 ```
 
-Each step first creates a new sampler from the current training weights, then performs rollouts in question order:
+Each step first creates a new sampler from the current training weights. It then performs the rollouts in question order:
 
 ```python
 for step in range(effective_steps):
@@ -462,7 +462,7 @@ for step in range(effective_steps):
             )
 ```
 
-The sampler refresh position reflects the on-policy constraint: after step $k$'s update completes, step $k+1$ regenerates trajectories with the new weights. After submitting the forward-backward and optimization tasks, the synchronous version explicitly waits for the results:
+The place of the sampler refresh shows the on-policy constraint. After the update of step $k$ completes, step $k+1$ regenerates trajectories with the new weights. After the script submits the forward-backward task and the optimization task, the synchronous version waits for the results in an explicit way:
 
 ```python
 optim_future = training_client.optim_step(adam_params)
@@ -471,7 +471,7 @@ optim_future.result()
 loss_metrics = dict(fwd_bwd_result.metrics)
 ```
 
-At the end, the script reports the batch average reward, degenerate group ratio, average generation length, number of effective training tokens, and `loss_mean`, and saves LoRA weights usable for sampling:
+At the end, the script reports five values. These are the batch average reward, the degenerate group ratio, the average generation length, the number of effective training tokens, and `loss_mean`. It then saves LoRA weights that you can use for sampling:
 
 ```python
 final_weights = training_client.save_weights_for_sampler(
@@ -485,7 +485,7 @@ print(
 
 ### 8.1.6 Running the Synchronous and Asynchronous Versions
 
-First log in to TRIO, then run a one-step trial of the synchronous version from the repository root:
+First log in to TRIO. Then run a one-step trial of the synchronous version from the repository root:
 
 ```bash
 trio login
@@ -499,7 +499,7 @@ python docs/chapter8/grpo/01-demo-sync.py \
     --swanlab-mode disabled
 ```
 
-The asynchronous version uses exactly the same training parameters:
+The asynchronous version uses the same training parameters:
 
 ```bash
 python docs/chapter8/grpo/02-demo-async.py \
@@ -511,7 +511,7 @@ python docs/chapter8/grpo/02-demo-async.py \
     --swanlab-mode disabled
 ```
 
-The asynchronous version's algorithm and data are unchanged; its execution changes as follows:
+The algorithm and the data of the asynchronous version do not change. Its execution changes as follows:
 
 | Training step | Synchronous version | Asynchronous version |
 | --- | --- | --- |
@@ -522,9 +522,9 @@ The asynchronous version's algorithm and data are unchanged; its execution chang
 | Optimizer | `optim_step()` then `.result()` | `optim_step_async()` then `await` the future again |
 | Program entry | `main(config)` | `asyncio.run(main(config))` |
 
-The main text uses the synchronous version to build algorithmic intuition. The asynchronous version suits formal experiments where the batch contains multiple independent prompts; it reduces serial waiting time by issuing remote requests concurrently.
+The text uses the synchronous version to build algorithmic intuition. The asynchronous version suits a formal experiment where the batch holds multiple independent prompts. It reduces serial waiting time by sending the remote requests at the same time.
 
-During training, prioritize observing the metrics the code actually records:
+During training, give priority to the metrics that the code actually records:
 
 | Metric | Meaning | Anomalous behavior |
 | --- | --- | --- |
@@ -534,46 +534,46 @@ During training, prioritize observing the metrics the code actually records:
 | `train_tokens` | Completion tokens with nonzero advantage | When 0, the current step has no training signal |
 | `loss_mean` | Main loss of the current policy update | If it fluctuates sharply, check the learning rate and probability ratios |
 
-At this point we have the first training mainline of this chapter: the current policy group-samples, a rule-based environment gives outcome rewards, in-group comparison produces advantages, and PyTRIO completes the policy update. The upcoming OPD keeps the same on-policy data flow while replacing the training signal with the Teacher's per-token feedback.
+Here the chapter reaches its first training mainline. The current policy group-samples. A rule-based environment gives outcome rewards. Comparison inside the group produces advantages. PyTRIO completes the policy update. The OPD that follows keeps the same on-policy data flow. It replaces the training signal with the per-token feedback of the Teacher.
 
 ## 8.2 On-Policy Distillation
 
-> **Code source:** This section is based on `01-demo-sync.py` and `02-demo-async.py` in the author's open-source repository [agentic-rl-lab/02-opd/general-opd](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/02-opd/general-opd). The main text explains the synchronous version `01-demo-sync.py` section by section; the asynchronous version is preserved as a complete companion implementation.
+> Code source: This section uses `01-demo-sync.py` and `02-demo-async.py` from [agentic-rl-lab/02-opd/general-opd](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/02-opd/general-opd), an open-source repository from the author. The text explains the synchronous version `01-demo-sync.py` section by section. The asynchronous version is kept as a complete companion implementation.
 
-Capability distillation for large language models usually involves a stronger Teacher and a smaller Student. Traditional knowledge distillation uses pre-collected data, having the Student fit the Teacher's probability distribution on those fixed samples. As the Student keeps changing during training, a gap may appear between the fixed data and the states the Student will actually visit.
+Capability distillation for large language models usually pairs a stronger Teacher with a smaller Student. Traditional knowledge distillation uses pre-collected data. The Student fits the probability distribution of the Teacher on those fixed samples. The Student keeps changing during training. A gap can then appear between the fixed data and the states that the Student will really visit.
 
-On-Policy Distillation (OPD) has the Student generate responses with its current policy, and then has the Teacher score, token by token, the trajectories the Student has already traversed. In this way, every round of supervision lies on the Student's current state distribution. The Teacher does not need to regenerate a set of answers, nor participate in backpropagation; it only provides dense probability feedback for the Student's actions.
+On-Policy Distillation (OPD) has the Student generate responses with its current policy. The Teacher then scores, token by token, the trajectories that the Student has already traveled. Every round of supervision thus lies on the current state distribution of the Student. The Teacher does not need to regenerate a set of answers, and it does not join backpropagation. It only gives dense probability feedback for the actions of the Student.
 
-In recent years, OPD has gradually become an important direction in large language model training. It can be used for reasoning-ability transfer, capability recovery, and continual learning, and it combines naturally with the reinforcement learning data flow: Student rollouts correspond to on-policy trajectories, Teacher logprobs correspond to token-by-token training signals, and after the Student updates, it generates the next batch of trajectories.
+OPD has become an important direction in large language model training in recent years. It can serve reasoning-ability transfer, capability recovery, and continual learning. It also joins the reinforcement learning data flow in a natural way. Student rollouts are the on-policy trajectories. Teacher logprobs are the token-by-token training signals. After the Student updates, it generates the next batch of trajectories.
 
 ### 8.2.1 From Offline Distillation to On-Policy Distillation
 
-Let the Teacher be $\pi_T$ and the Student be $\pi_\theta$. Offline distillation first fixes a dataset $\mathcal D$, then minimizes the distribution discrepancy on the states within it:
+Let the Teacher be $\pi_T$ and the Student be $\pi_\theta$. Offline distillation first fixes a dataset $\mathcal D$. It then minimizes the distribution discrepancy on the states inside that dataset:
 
 $$\mathcal L_{\mathrm{offline}} = \mathbb E_{s\sim\mathcal D} \left[D\bigl(\pi_T(\cdot\mid s),\pi_\theta(\cdot\mid s)\bigr)\right].$$
 
-This approach is simple to implement, and its effectiveness depends on whether the dataset covers the states the Student encounters at inference time. Suppose the fixed data mostly contains the Teacher's high-quality trajectories, while the Student produces an erroneous token early during real generation; the states it subsequently enters may never appear in the distillation data, and the Teacher's guidance cannot cover this out-of-distribution trajectory.
+This approach is simple to implement. Its effectiveness depends on whether the dataset covers the states that the Student meets at inference time. Suppose the fixed data mostly holds high-quality trajectories of the Teacher. The Student then produces an erroneous token early in real generation. The states that the Student enters next can be absent from the distillation data. The guidance of the Teacher then cannot cover this out-of-distribution trajectory.
 
 OPD changes the state sampling to the current Student:
 
 $$y\sim\pi_{\theta_{\mathrm{old}}}(\cdot\mid x),$$
 
-and then has the Teacher compute the conditional probability of the same Student completion:
+The Teacher then computes the conditional probability of the same Student completion:
 
 $$\log\pi_T(y_t\mid x,y_{\lt t}).$$
 
-One training iteration can be divided into three steps:
+One training iteration has three steps:
 
-1. **Student rollout**: the Student generates responses using its current weights;
-2. **Teacher feedback**: the Teacher computes logprobs on exactly the same prompt and completion;
-3. **Student update**: construct a token-by-token signal from the probability difference between the two and update the Student.
+1. Student rollout: the Student generates responses with its current weights.
+2. Teacher feedback: the Teacher computes logprobs on the same prompt and the same completion.
+3. Student update: build a token-by-token signal from the probability difference between the two models, and update the Student.
 
 <div align='center'>
     <img src="/images/8-images/8-3-opd.webp" alt="OPD obtains Teacher feedback on the Student&#x27;s own trajectories" width="1600" height="1082" loading="lazy" decoding="async" />
     <p>Figure 8.3 OPD obtains Teacher feedback on the Student's own trajectories</p>
 </div>
 
-In Figure 8.3, the Teacher only performs forward computation. The Student's sampling actions also do not participate in backpropagation; gradients flow from the constructed training targets back to the current Student parameters. This stop-gradient boundary lets OPD directly reuse existing rollout and policy-optimization infrastructure.
+In Figure 8.3, the Teacher performs only forward computation. The sampling actions of the Student also do not join backpropagation. Gradients flow from the constructed training targets back to the current Student parameters. This stop-gradient boundary lets OPD reuse the existing rollout and policy-optimization infrastructure.
 
 ### 8.2.2 Reverse KL and Token-by-Token Training Signals
 
@@ -581,19 +581,19 @@ OPD can choose different distribution divergences. This chapter uses reverse KL:
 
 $$D_{\mathrm{KL}}\left(\pi_\theta\,\|\,\pi_T\right) = \mathbb E_{y\sim\pi_\theta} \left[\log\pi_\theta(y\mid x)-\log\pi_T(y\mid x)\right].$$
 
-For the $t$-th token actually sampled by the Student, we obtain a Monte Carlo estimate:
+For the $t$-th token that the Student actually samples, we obtain a Monte Carlo estimate:
 
 $$d_t = \log\pi_{\theta_{\mathrm{old}}}(y_t\mid x,y_{\lt t})-\log\pi_T(y_t\mid x,y_{\lt t}).$$
 
-When $d_t>0$, the Student's preference for this token is higher than the Teacher's; when $d_t<0$, the Teacher assigns a higher probability. To minimize reverse KL, this chapter writes the training advantage as:
+If $d_t>0$, the Student prefers this token more than the Teacher. If $d_t<0$, the Teacher assigns the higher probability. To minimize reverse KL, this chapter writes the training advantage as:
 
 $$A_t=-\beta d_t,$$
 
-where $\beta$ controls the distillation strength. In this way, every completion token receives an independent training signal, whose density far exceeds that of giving a single 0/1 reward only at the end of the response.
+Here $\beta$ controls the distillation strength. Every completion token thus receives an independent training signal. Its density far exceeds that of a single 0/1 reward given only at the end of the response.
 
-Reverse KL has a strong mode-seeking property. The Student preferentially concentrates on regions where the Teacher already assigns high probability, which suits compressing the Teacher's high-confidence behaviors into a small model. At the same time, the capability gap between Teacher and Student, their reasoning styles, and tokenizer compatibility all affect the distillation result. A larger Teacher is only a candidate condition; the Teacher must also provide valuable and learnable new signals on the Student's current trajectories.
+Reverse KL has a strong mode-seeking property. The Student concentrates first on the regions where the Teacher already assigns a high probability. This suits the compression of the high-confidence behaviors of the Teacher into a small model. At the same time, the capability gap between Teacher and Student, their reasoning styles, and tokenizer compatibility all affect the distillation result. A larger Teacher is only one candidate condition. The Teacher must also give valuable and learnable new signals on the current trajectories of the Student.
 
-Table 8.2 compares the data sources of GRPO and this chapter's OPD example.
+Table 8.2 compares the data sources of GRPO and of the OPD example in this chapter.
 
 | Item | GRPO | OPD |
 | --- | --- | --- |
@@ -606,9 +606,9 @@ Table 8.2 compares the data sources of GRPO and this chapter's OPD example.
 
 ### 8.2.3 The Teacher Must Evaluate the Same Student Trajectory
 
-The key data constraint of OPD is that the Teacher and the Student must evaluate the same target tokens under the same prefix. Having the Teacher generate its own response and then letting the Student learn that response would fall back into the common synthetic-data distillation pipeline.
+The key data constraint of OPD is this. The Teacher and the Student must evaluate the same target tokens under the same prefix. Suppose the Teacher generates its own response, and the Student then learns that response. This falls back into the common pipeline of synthetic-data distillation.
 
-In PyTRIO, you can first concatenate the prompt and the Student completion, then call the Teacher's `compute_logprobs()`:
+In PyTRIO, you can first concatenate the prompt and the Student completion. You then call `compute_logprobs()` of the Teacher:
 
 ```python
 def completion_teacher_logprobs(
@@ -626,9 +626,9 @@ def completion_teacher_logprobs(
     return [float(x) for x in all_logprobs[start:end]]
 ```
 
-Different SDKs may define the position of logprobs with an off-by-one difference, so you cannot guess the slicing by array length alone. The most reliable approach is to construct a very short known sequence, confirm whether each returned position represents "the logprob of the current token" or "the logprob of the next token," and then finish the boundary testing between prompt and completion. This chapter's code has already been aligned with PyTRIO 0.2.6's return convention.
+Different SDKs can define the position of logprobs with an off-by-one difference. You cannot guess the slicing from the array length alone. The most reliable method starts with a very short sequence with known content. Confirm whether each returned position is the "logprob of the current token" or the "logprob of the next token." Then test the boundary. The code of this chapter matches the return convention of PyTRIO 0.2.6.
 
-The Teacher and Student also need to share a compatible tokenizer. If the same group of token ids represents different strings in the two models, the probability difference has no correct semantics even when the array lengths match. Before formal training, verify:
+The Teacher and the Student also need a compatible tokenizer. Suppose the same group of token ids means different strings in the two models. The probability difference then has no correct meaning, even when the array lengths match. Before formal training, make sure that you check:
 
 ```python
 text = "A short tokenizer alignment test."
@@ -638,22 +638,22 @@ teacher_ids = teacher_tokenizer.encode(text, add_special_tokens=False)
 assert student_ids == teacher_ids
 ```
 
-For models in the same family but with different chat templates, the Student tokenizer should render the full prompt once, and the Teacher should then directly evaluate the corresponding token sequence. Do not apply the two chat templates separately; otherwise the context each side sees has already changed.
+For models of the same family with different chat templates, the Student tokenizer must render the full prompt once. The Teacher must then evaluate the corresponding token sequence directly. Do not apply the two chat templates separately. If you do, the context that each side sees has already changed.
 
 ### 8.2.4 Implementing the Synchronous OPD from Scratch
 
-The OPD companion directory likewise provides two independent scripts, synchronous and asynchronous:
+The OPD directory also holds two scripts, one synchronous and one asynchronous:
 
 | File | Execution mode | Purpose |
 | --- | --- | --- |
 | `01-demo-sync.py` | Synchronous | The teaching mainline, explained section by section in the text |
 | `02-demo-async.py` | Asynchronous | Concurrently processes Student rollouts and Teacher logprob requests |
 
-Following the code order of `01-demo-sync.py`, we now implement a complete round of OPD from a DeepMath prompt to the Student update.
+Follow the code order of `01-demo-sync.py` to build one complete round of OPD, from a DeepMath prompt to the Student update.
 
-**(1) Prepare parameters and the DeepMath data**
+(1) Prepare parameters and the DeepMath data
 
-The script downloads data by default to `datasets/DeepMath-103K` under the current code directory:
+By default, the script downloads the data to `datasets/DeepMath-103K` under the current code directory:
 
 ```python
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -663,14 +663,14 @@ DEEPMATH_SHARDS = 10
 
 The arguments of `parse_args()` fall into four groups:
 
-- Data arguments: `dataset_repo`, `dataset_dir`, `num_shards`, `sample_size`;
-- Model arguments: the Student base model, LoRA rank, the Teacher base model or Teacher weight path;
-- Training arguments: steps, batch, group, sampling length, the KL coefficient, and optimizer parameters;
-- Logging arguments: the SwanLab project, experiment name, and log mode.
+- Data arguments: `dataset_repo`, `dataset_dir`, `num_shards`, `sample_size`.
+- Model arguments: the Student base model, the LoRA rank, the Teacher base model or the Teacher weight path.
+- Training arguments: steps, batch, group, sampling length, the KL coefficient, and the optimizer parameters.
+- Logging arguments: the SwanLab project, the experiment name, and the log mode.
 
-DeepMath-103K on ModelScope contains 10 parquet shards. `shard_name()` generates the remote file names, `modelscope_file_url()` generates the download URLs, and `download_if_needed()` writes to a temporary file first and then atomically replaces it, avoiding incomplete shards after interruption.
+DeepMath-103K on ModelScope holds 10 parquet shards. `shard_name()` generates the remote file names. `modelscope_file_url()` generates the download URLs. `download_if_needed()` writes to a temporary file first and then replaces it in one atomic step. This avoids an incomplete shard after an interruption.
 
-The data-loading function hands the local parquet files to Hugging Face Datasets, keeping only the `question` field needed for training:
+The data-loading function hands the local parquet files to Hugging Face Datasets. It keeps only the `question` field that training needs:
 
 ```python
 def load_deepmath(args: argparse.Namespace):
@@ -713,11 +713,11 @@ def load_deepmath(args: argparse.Namespace):
     return dataset
 ```
 
-`--num-shards 1` suits the first integration test, while `--num-shards 10` covers the full dataset. `--sample-size` controls how many samples actually enter the prompt pool after loading.
+`--num-shards 1` suits the first integration test. `--num-shards 10` covers the full dataset. `--sample-size` controls how many samples enter the prompt pool after loading.
 
-**(2) Render questions into Student prompts**
+(2) Render questions into Student prompts
 
-OPD uses prompt-only data and does not read DeepMath's reference reasoning. `build_prompt()` hands the question and the output requirement to the Student tokenizer:
+OPD uses prompt-only data and does not read the reference reasoning of DeepMath. `build_prompt()` hands the question and the output requirement to the Student tokenizer:
 
 ```python
 def build_prompt(
@@ -744,11 +744,11 @@ def build_prompt(
     )
 ```
 
-The prompt is rendered only once. The Teacher then directly evaluates the same group of tokens, keeping both sides' context exactly identical.
+The prompt is rendered only once. The Teacher then evaluates the same group of tokens directly, so the two sides keep exactly the same context.
 
-**(3) Create the Student and the Teacher**
+(3) Create the Student and the Teacher
 
-The Student uses a LoRA training client; the Teacher uses a sampling client that only does forward computation:
+The Student uses a LoRA training client. The Teacher uses a sampling client that performs only forward computation:
 
 ```python
 service_client = trio.ServiceClient()
@@ -771,11 +771,11 @@ teacher_client = service_client.create_sampling_client(
 )
 ```
 
-`teacher_model_path` can point to already-saved sampler weights. The Teacher never calls `forward_backward()` or `optim_step()`; its parameters stay fixed throughout the OPD process.
+`teacher_model_path` can point to sampler weights that you already saved. The Teacher never calls `forward_backward()` or `optim_step()`. Its parameters stay fixed for the whole OPD process.
 
-**(4) Have the Teacher evaluate the Student's identical trajectory**
+(4) Have the Teacher evaluate the Student's identical trajectory
 
-The Student rollout returns completion tokens and old-policy logprobs. The Teacher needs to see `prompt_ids + completion_ids`, and then the completion region is sliced out of the returned result:
+The Student rollout returns completion tokens and old-policy logprobs. The Teacher must see `prompt_ids + completion_ids`. The code then slices the completion region out of the returned result:
 
 ```python
 def completion_teacher_logprobs(
@@ -811,11 +811,11 @@ def completion_teacher_logprobs(
     ]
 ```
 
-The length check and `None` check protect token alignment. Only after passing the checks can the $t$-th Student completion token, the Student's old logprob, and the Teacher's logprob form the same training position.
+The length check and the `None` check protect the token alignment. Only after both checks pass can the $t$-th Student completion token, the Student old logprob, and the Teacher logprob form the same training position.
 
-**(5) Construct the token-by-token OPD Datum**
+(5) Construct the token-by-token OPD Datum
 
-OPD and GRPO use the same `importance_sampling` schema; the difference lies in the advantage. GRPO replicates a single group advantage across the whole completion, while OPD writes an independent reverse-KL advantage for each completion token:
+OPD and GRPO use the same `importance_sampling` schema. The difference is the advantage. GRPO copies one group advantage across the whole completion. OPD writes an independent reverse-KL advantage for each completion token:
 
 ```python
 def build_opd_datum(
@@ -875,9 +875,9 @@ def build_opd_datum(
     )
 ```
 
-The right-shift rule is exactly the same as GRPO's. The three loss inputs in the prompt region continue to use 0 as placeholders, while the completion region holds, one to one, the Student tokens, the Student's old logprobs, and each token's OPD advantage.
+The right-shift rule is the same as in GRPO. The three loss inputs in the prompt region still hold 0 as a placeholder. The completion region holds, one to one, the Student tokens, the Student old logprobs, and the OPD advantage of each token.
 
-**(6) Generate Student trajectories and compute reverse KL**
+(6) Generate Student trajectories and compute reverse KL
 
 At the start of each step, the code refreshes the Student sampler according to `sampler_refresh_steps`. The default is 1, so every step uses the latest Student weights:
 
@@ -892,7 +892,7 @@ if (
     )
 ```
 
-The synchronous version processes the current batch's questions one by one. For each prompt, the Student first generates `group_size` trajectories, and the Teacher then scores each nonempty completion:
+The synchronous version processes the questions of the current batch one by one. For each prompt, the Student first generates `group_size` trajectories. The Teacher then scores each nonempty completion:
 
 ```python
 result = student_sampler.sample(
@@ -942,11 +942,11 @@ for sequence in result.sequences:
     )
 ```
 
-Here `group_size` widens the coverage of Student states under the same prompt. Each trajectory independently receives the Teacher's signal, without GRPO-style in-group centering.
+Here `group_size` widens the coverage of Student states under the same prompt. Each trajectory receives the Teacher signal on its own, without the in-group centering of GRPO.
 
-**(7) Update the Student, record metrics, and save weights**
+(7) Update the Student, record metrics, and save weights
 
-After the whole batch is collected, the code performs one forward-backward pass and one optimizer update:
+After the code collects the whole batch, it performs one forward-backward pass and one optimizer update:
 
 ```python
 if not datums:
@@ -964,7 +964,7 @@ fwd_bwd_result = fwd_bwd.result()
 optim.result()
 ```
 
-The `tokens/s` of an OPD step divides the total number of completion tokens by the elapsed time of the whole step. That time simultaneously includes Student sampling, Teacher logprobs, the Student's forward-backward pass, the optimizer update, and any necessary sampler refresh:
+The `tokens/s` of an OPD step divides the total number of completion tokens by the elapsed time of the whole step. That time holds Student sampling, Teacher logprobs, the forward-backward pass of the Student, the update of the optimizer, and any needed sampler refresh:
 
 ```python
 completion_tokens_total = int(
@@ -993,7 +993,7 @@ metrics = {
 }
 ```
 
-After training finishes, the Student's sampler weights are saved:
+After training finishes, the code saves the sampler weights of the Student:
 
 ```python
 save_result = (
@@ -1008,7 +1008,7 @@ print(f"Saved weights: {save_result.path}")
 
 ### 8.2.5 Running the Synchronous and Asynchronous Versions
 
-A one-step trial of the synchronous version automatically downloads one DeepMath shard and draws at most 20 prompts from it:
+A one-step trial of the synchronous version downloads one DeepMath shard automatically. It then draws at most 20 prompts from that shard:
 
 ```bash
 python docs/chapter8/opd/01-demo-sync.py \
@@ -1021,7 +1021,7 @@ python docs/chapter8/opd/01-demo-sync.py \
     --swanlab-mode disabled
 ```
 
-The asynchronous version uses the same algorithm and parameters:
+The asynchronous version uses the same algorithm and the same parameters:
 
 ```bash
 python docs/chapter8/opd/02-demo-async.py \
@@ -1034,7 +1034,7 @@ python docs/chapter8/opd/02-demo-async.py \
     --swanlab-mode disabled
 ```
 
-Asynchronous OPD exploits two layers of concurrency at once:
+Asynchronous OPD uses two layers of concurrency at the same time:
 
 | Training step | Synchronous version | Asynchronous version |
 | --- | --- | --- |
@@ -1045,33 +1045,33 @@ Asynchronous OPD exploits two layers of concurrency at once:
 | Student update | Synchronous future + `.result()` | Submit via the async API, then `await` the future again |
 | Program entry | `main(args)` | `asyncio.run(main(args))` |
 
-The main text only expands the synchronous version, because it directly presents the causal order "Student samples → Teacher scores → reverse KL → Student updates." The asynchronous version keeps the same token alignment, advantages, and optimization objective.
+This main text expands only the synchronous version, because that version shows the causal order directly. The order is "Student samples → Teacher scores → reverse KL → Student updates." The asynchronous version keeps the same token alignment. Its advantages and objective also stay the same.
 
-The example defaults to `Qwen/Qwen3.5-4B` as the Student and `Qwen/Qwen3.6-27B` as the Teacher. The actually available models should follow the supported list currently returned by the PyTRIO service. During training, watch in parallel:
+The example uses `Qwen/Qwen3.5-4B` as the Student and `Qwen/Qwen3.6-27B` as the Teacher by default. The models that are actually available must follow the supported list that the PyTRIO service returns at that time. During training, watch these values in parallel:
 
-- `opd/reverse_kl_mean`: the average difference between the Student's sampled tokens and the Teacher's probabilities;
-- `opd/reverse_kl_std`: the dispersion of the distillation signal across different tokens;
-- `data/completion_tokens_total`: the total number of tokens the Teacher scored in this step;
-- `data/completion_tokens_per_second`: the effective completion-token throughput of the whole OPD step;
-- `trainer/*`: training metrics returned by PyTRIO;
-- Independent task evaluations and general capability evaluations: to confirm the real capability changes after distillation.
+- `opd/reverse_kl_mean`: the average difference between the sampled tokens of the Student and the probabilities of the Teacher.
+- `opd/reverse_kl_std`: the spread of the distillation signal across different tokens.
+- `data/completion_tokens_total`: the total number of tokens that the Teacher scored in this step.
+- `data/completion_tokens_per_second`: the effective throughput of completion tokens for the whole OPD step.
+- `trainer/*`: training metrics returned by PyTRIO.
+- Independent task evaluations and general capability evaluations: they confirm the real capability changes after distillation.
 
-A falling reverse KL indicates that the Student's sampling distribution is approaching the Teacher's. Task accuracy still needs to be confirmed with a fixed held-out evaluation. When loss fluctuates or capability drops, check in order: token alignment, Teacher quality, the KL coefficient, the learning rate, the sampler refresh frequency, and the completion truncation ratio.
+A falling reverse KL shows that the sampling distribution of the Student is approaching the distribution of the Teacher. Task accuracy still needs confirmation with a fixed held-out evaluation. If the loss fluctuates or the capability drops, check in this order. First check token alignment and Teacher quality. Then check the KL coefficient, the learning rate, the sampler refresh frequency, and the truncation ratio of completions.
 
-So far, GRPO and OPD have both taken place in the single-turn structure of "the model generates a response, an external module provides the training signal." The next section's Search-R1 further changes the shape of the trajectory: before finishing its response, the model may pause generation, call the search environment, read an observation, and then continue deciding its next action.
+So far, GRPO and OPD have both used a single-turn structure. In that structure, the model generates a response and an external module provides the training signal. Search-R1 in the next section further changes the shape of the trajectory. Before the model finishes its response, it can pause generation and call the search environment. It can then read an observation and decide its next action.
 ## 8.3 Search-R1
 
-> **Code source:** This section is based on the complete multi-file implementation in the author's open-source repository [agentic-rl-lab/03-search-r1](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/03-search-r1). The main text follows the real call chain of `prepare_data.py`, `protocol.py`, `search.py`, `rollout.py`, `reward.py`, `train.py`, `eval.py`, and `analyse.py`.
+> Code source: This section is based on the complete multi-file implementation in the author's open-source repository [agentic-rl-lab/03-search-r1](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/03-search-r1). The main text follows the real call chain of `prepare_data.py`, `protocol.py`, `search.py`, `rollout.py`, `reward.py`, `train.py`, `eval.py`, and `analyse.py`.
 
-A large language model stores a vast amount of knowledge internally, but that knowledge is limited by the time range of its training data, its parameter capacity, and its long-tail coverage. Retrieval-Augmented Generation (RAG) usually has the system retrieve documents in advance and then hand the results to the model to answer. Search-R1 hands the search decisions to the model: the model can judge when to search, what to search, whether to keep searching based on new evidence, and when to stop and give an answer.
+A large language model stores much knowledge internally. However, that knowledge has limits from the time range of its training data, its parameter capacity, and its coverage of rare facts. Retrieval-Augmented Generation (RAG) usually has the system retrieve documents in advance and then hand the results to the model to answer. Search-R1 gives the search decisions to the model. The model can judge when to search, what to search, whether to keep searching after new evidence, and when to stop and give an answer.
 
 This change makes a single response a multi-turn trajectory:
 
 $$\tau=(x,a_1,o_1,a_2,o_2,\ldots,a_T),$$
 
-where $a_t$ is the search call or final answer generated by the model, and $o_t$ is the observation returned by the search environment. The model only receives the outcome reward after completing the entire trajectory, and GRPO then distinguishes successful search paths from failed ones.
+where $a_t$ is the search call or the final answer generated by the model, and $o_t$ is the observation returned by the search environment. The model receives the outcome reward only after it completes the entire trajectory. GRPO then separates successful search paths from failed ones.
 
-The companion implementation is not an isolated training script but an execution chain composed of 9 files. When reading the code, you can first grasp the following mainline:
+The companion implementation is not an isolated training script. It is an execution chain that contains 9 files. When you read the code, use this mainline first:
 
 ```text
 prepare_data.py / data.py
@@ -1088,17 +1088,17 @@ eval.py / analyse.py
         ↓ fixed-environment evaluation and result aggregation
 ```
 
-What is actually trained are the Assistant tokens generated by the language model. The search service handled by `search.py` belongs to the environment, `protocol.py` connects model actions and environment observations into continuous trajectories, `rollout.py` orchestrates the two, and only `train.py` finally converts trajectories into `Datum` objects PyTRIO can update. Below, the code is expanded along this real call chain.
+The code trains only the Assistant tokens that the language model generates. The search service in `search.py` belongs to the environment. `protocol.py` connects model actions and environment observations into continuous trajectories. `rollout.py` runs the two together. Only `train.py` finally converts trajectories into `Datum` objects that PyTRIO can update. Below, the code follows this real call chain.
 
 ### 8.3.1 From Fixed Retrieval to Autonomous Search
 
-Search-R1's training samples contain only the question and reference answers, no manually written search terms, and no standard search trajectories. `prepare_data.py` unifies the raw fields of NQ and HotpotQA into the following JSONL structure:
+The training samples of Search-R1 contain only the question and the reference answers. They contain no manually written search terms and no standard search trajectories. `prepare_data.py` unifies the raw fields of NQ and HotpotQA into the following JSONL structure:
 
 ```json
 {"id":"...","question":"...","answers":["..."],"data_source":"nq"}
 ```
 
-The cleaning logic keeps only the fields usable for outcome rewards:
+The cleaning logic keeps only the fields that outcome rewards can use:
 
 ```python
 def normalize_row(row: dict[str, Any]) -> dict[str, Any] | None:
@@ -1127,9 +1127,9 @@ class SearchExample:
     data_source: str
 ```
 
-This data boundary matters. The search queries, the number of searches, and how evidence is used must all be explored by the current policy itself during rollout; if the training set already provides fixed retrieval trajectories, the task becomes closer to trajectory imitation rather than the Search-R1 discussed in this section.
+This data boundary matters. The current policy itself must explore the search queries, the number of searches, and the use of evidence during rollout. If the training set already provides fixed retrieval trajectories, the task becomes closer to imitation of trajectories than to the Search-R1 of this section.
 
-The differences between fixed RAG and a Search Agent can be seen in Table 8.3.
+Table 8.3 shows the differences between fixed RAG and a Search Agent.
 
 | Aspect | Fixed RAG | Search-R1 |
 | --- | --- | --- |
@@ -1139,7 +1139,7 @@ The differences between fixed RAG and a Search Agent can be seen in Table 8.3.
 | Training target | The answer model or the retriever | A unified policy for search actions and final answers |
 | Reward | Usually supervised answer loss | Outcome reward on the complete trajectory |
 
-For example, the question "What country was the author of The Little Prince born in?" requires first identifying the author, then querying the author's birthplace. The model can form the following trajectory:
+For example, the question "What country was the author of The Little Prince born in?" requires the model to identify the author first. It then queries the birthplace of the author. The model can form the following trajectory:
 
 ```text
 User: What country was the author of The Little Prince born in?
@@ -1153,14 +1153,14 @@ Tool: He was born in Lyon, France ...
 Assistant: Answer: France
 ```
 
-The second search term depends on the first observation, so it cannot be determined all at once before the rollout begins. The training code needs to maintain environment state and parse the model's actions after each assistant turn.
+The second search term depends on the first observation, so the model cannot determine it in advance before the rollout begins. The training code must maintain the environment state and parse the actions of the model after each assistant turn.
 
 <div align='center'>
     <img src="/images/8-images/8-4-search-r1.webp" alt="Search-R1&#x27;s multi-turn search and observation mask" width="1600" height="1082" loading="lazy" decoding="async" />
     <p>Figure 8.4 Search-R1's multi-turn search and observation mask</p>
 </div>
 
-The Search-R1 paper uses text tags such as `<search>... </search>` and `<information>... </information>` to represent actions and observations. This chapter uses the Qwen3.5-4B model with the model's native function calling template:
+The Search-R1 paper uses text tags such as `<search>... </search>` and `<information>... </information>` for actions and observations. This chapter uses the Qwen3.5-4B model with the native function calling template of the model:
 
 ```python
 SEARCH_TOOL = {
@@ -1179,9 +1179,9 @@ SEARCH_TOOL = {
 }
 ```
 
-The two protocols carry the same reinforcement learning semantics: the Assistant outputs trainable actions, and the search backend returns environment observations. Using the native template reduces conflicts between the model's base capabilities and the tool format, and also preserves structured tool messages.
+The two protocols carry the same reinforcement learning semantics. The Assistant outputs trainable actions, and the search backend returns environment observations. The native template reduces conflicts between the base capabilities of the model and the tool format. It also keeps structured tool messages.
 
-After defining the tool, the model's output must also be strictly parsed into three states: a valid search, a final answer, or an invalid output. The parser in `protocol.py` requires that a turn contain at most one complete `search` call, and that no final answer be smuggled in after the tool call:
+After the tool definition, the code must also parse the output of the model strictly into three states. The states are a valid search, a final answer, and an invalid output. The parser in `protocol.py` requires at most one complete `search` call in a turn. It also requires that no final answer comes after the tool call:
 
 ```python
 def parse_assistant(text: str) -> ParsedAssistant:
@@ -1216,11 +1216,11 @@ def parse_assistant(text: str) -> ParsedAssistant:
     )
 ```
 
-No separate "stop" action is defined here. As long as no valid tool call appears in the output, the turn ends as the final answer; `reward.py` then checks whether it conforms to `Answer: <short answer>`. Output containing an incomplete `<tool_call>` is marked `invalid`, likewise ending the trajectory and receiving a format penalty.
+This code defines no separate "stop" action. If no valid tool call appears in the output, the turn ends as the final answer. `reward.py` then checks whether the answer follows `Answer: <short answer>`. Output that contains an incomplete `<tool_call>` is marked `invalid`. It also ends the trajectory and receives a format penalty.
 
 ### 8.3.2 How the Search Backend Becomes an Environment Observation
 
-`search.py` provides three backends: DeepSeek Search, Wikipedia, and Zhihu. The rollout does not depend directly on any HTTP response format, only on the unified `SearchResult`:
+`search.py` provides three backends: DeepSeek Search, Wikipedia, and Zhihu. The rollout does not depend directly on any HTTP response format. It depends only on the unified `SearchResult`:
 
 ```python
 @dataclass(frozen=True)
@@ -1240,7 +1240,7 @@ class SearchResult:
     error: str | None = None
 ```
 
-The training entry creates a backend based on command-line arguments, and the subsequent state machine always calls the same `search(query)` interface:
+The training entry creates a backend from the command-line arguments. The state machine then always calls the same `search(query)` interface:
 
 ```python
 def create_search_client(
@@ -1271,7 +1271,7 @@ def create_search_client(
     raise ValueError(f"不支持的搜索后端: {backend}")  # (unsupported search backend: {backend})
 ```
 
-Taking the key-free Wikipedia backend as an example, the actual retrieval happens in `_request()`. A single API request performs a full-text search and fetches the titles, body extracts, and URLs of the top three pages:
+Take the key-free Wikipedia backend as an example. The actual retrieval happens in `_request()`. A single API request performs a full-text search. It also fetches the titles, the body extracts, and the URLs of the top three pages:
 
 ```python
 def _request(
@@ -1358,9 +1358,9 @@ def _request(
         )
 ```
 
-The outer `search()` also handles request rate limiting, timeout, and bounded retries on 429 and 5xx, and accumulates success rate and latency. If retries still fail, it does not let the whole rollout raise an exception and exit; instead it returns `SearchResult(ok=False, error=...)`. `rollout.py` feeds the error text to the model as an observation too, so the model can continue answering or rewrite the query.
+The outer `search()` also handles request rate limits, timeouts, and bounded retries on 429 and 5xx. It accumulates the success rate and the latency. If retries still fail, it does not let the whole rollout raise an exception and exit. Instead it returns `SearchResult(ok=False, error=...)`. `rollout.py` also feeds the error text to the model as an observation. The model can then continue to answer or rewrite the query.
 
-The results of different backends are ultimately formatted into readable evidence:
+The results of different backends are finally formatted into readable evidence:
 
 ```text
 [1] Title: ...
@@ -1369,11 +1369,11 @@ The results of different backends are ultimately formatted into readable evidenc
     URL: ...
 ```
 
-Returning only titles or links is usually insufficient, because what the model really needs is `content` that can support the next step of reasoning. `max_tool_response_tokens` and `max_trajectory_tokens` again limit the evidence length before observations enter the trajectory.
+Titles or links alone are usually insufficient. The model really needs the `content` that supports the next step of reasoning. `max_tool_response_tokens` and `max_trajectory_tokens` again limit the evidence length before observations enter the trajectory.
 
 ### 8.3.3 The Multi-Turn Rollout State Machine
 
-Single-turn GRPO needs only one `sample()` call. In Search-R1, each trajectory may go through a different number of search calls, and the trainer must repeatedly execute "generate—parse—call the environment—append the observation."
+Single-turn GRPO needs only one `sample()` call. In Search-R1, each trajectory can go through a different number of search calls. The trainer must repeat this cycle: generate, parse, call the environment, append the observation.
 
 This chapter stores a trajectory as a `Trajectory`:
 
@@ -1403,9 +1403,9 @@ class Trajectory:
     done: bool = False
 ```
 
-Here, each `AssistantTurn` records the complete prompt before this turn's sampling, the model's generated tokens, and the corresponding old-policy logprobs. Search results live in `messages` and in the next turn's prompt, but they carry no rollout logprobs, because those tokens come from the environment.
+Here, each `AssistantTurn` records the complete prompt before the sampling of this turn, the generated tokens of the model, and the matching old-policy logprobs. Search results live in `messages` and in the prompt of the next turn. However, they carry no rollout logprobs, because those tokens come from the environment.
 
-What actually sends requests to PyTRIO is `sample_requests_async()`. Within the same round, different questions or already-diverged trajectories can be sampled concurrently:
+`sample_requests_async()` is the function that actually sends requests to PyTRIO. Within the same round, the code can sample different questions or already-diverged trajectories concurrently:
 
 ```python
 async def sample_requests_async(
@@ -1436,7 +1436,7 @@ async def sample_requests_async(
     return list(await asyncio.gather(*tasks))
 ```
 
-After sampling returns, `consume_assistant()` first saves the raw tokens and old logprobs, then calls the protocol parser from the previous section. A valid search becomes a `PendingSearch`; a final answer, an invalid format, or an exhausted budget all end the current trajectory:
+After sampling returns, `consume_assistant()` first saves the raw tokens and the old logprobs. It then calls the protocol parser from the previous section. A valid search becomes a `PendingSearch`. A final answer, an invalid format, or an exhausted budget ends the current trajectory:
 
 ```python
 def consume_assistant(
@@ -1498,7 +1498,7 @@ def consume_assistant(
     )
 ```
 
-`resolve_searches()` uses a thread pool to concurrently call the search backend for different trajectories, then pairs results with pending trajectories in the original order:
+`resolve_searches()` uses a thread pool to call the search backend for different trajectories at the same time. It then pairs the results with the pending trajectories in the original order:
 
 ```python
 def resolve_searches(
@@ -1540,7 +1540,7 @@ def resolve_searches(
     )
 ```
 
-Each result is then written back to its original trajectory by `finish_search()`:
+`finish_search()` then writes each result back to its original trajectory:
 
 ```python
 def finish_search(
@@ -1577,7 +1577,7 @@ def finish_search(
     return False
 ```
 
-`fit_tool_content()` adds search evidence item by item. As soon as an observation would exceed the per-tool budget or the whole-trajectory budget, it stops adding further evidence; if not even one result fits, the trajectory ends directly. This way, how much text the search service returns and how much text the model actually sees are two clearly separated boundaries.
+`fit_tool_content()` adds search evidence item by item. It stops adding evidence as soon as an observation would exceed the per-tool budget or the whole-trajectory budget. If not even one result fits, the trajectory ends directly. In this way, two clearly separated boundaries control how much text the search service returns and how much text the model really sees.
 
 A group of GRPO trajectories shares exactly the same prompt in the first turn. The code generates `group_size` branches with a single request:
 
@@ -1596,7 +1596,7 @@ for index, trajectory in enumerate(roots):
         first_requests.append(request)
 ```
 
-Each sequence in the sampling response is deep-copied from the root trajectory into an independent branch, and its search actions are then parsed separately:
+The code deep-copies each sequence in the sampling response from the root trajectory into an independent branch. It then parses the search actions of that branch separately:
 
 ```python
 responses = asyncio.run(
@@ -1643,7 +1643,7 @@ resolve_searches(
 )
 ```
 
-After different branches execute their searches, the observations and past actions already differ. In subsequent turns, each unfinished trajectory gets `num_samples=1` individually:
+After different branches execute their searches, their observations and past actions already differ. In later turns, the code samples each unfinished trajectory individually with `num_samples=1`:
 
 ```python
 while any(not item.done for item in trajectories):
@@ -1706,29 +1706,29 @@ while any(not item.done for item in trajectories):
     )
 ```
 
-This "shared root node, then branch" implementation satisfies two conditions at once: same-question trajectories can be compared within the GRPO group, and each branch can keep acting on its own search results. Multiple PyTRIO sampling requests and search requests can all execute concurrently, reducing the waiting time caused by multi-turn environment interaction.
+This implementation, "shared root node, then branch," meets two conditions at the same time. Trajectories of the same question can be compared within the GRPO group. Each branch can also keep acting on its own search results. Many PyTRIO sampling requests and search requests can all run concurrently, which reduces the waiting time of multi-turn environment interaction.
 
 The state machine must also set explicit boundaries:
 
-- `max_search_calls`: the maximum number of searches a trajectory may call;
-- `max_assistant_turns`: the maximum number of Assistant messages that may be generated;
-- `max_assistant_tokens`: the token cap for a single turn's action;
-- `max_tool_response_tokens`: the token cap for a single observation;
-- `max_trajectory_tokens`: the total token cap for the entire context;
-- Search timeout and concurrency: limiting external-service waiting time and concurrency pressure.
+- `max_search_calls`: the maximum number of searches a trajectory may call.
+- `max_assistant_turns`: the maximum number of Assistant messages that may be generated.
+- `max_assistant_tokens`: the token cap for a single turn's action.
+- `max_tool_response_tokens`: the token cap for a single observation.
+- `max_trajectory_tokens`: the total token cap for the entire context.
+- Search timeout and concurrency: the limit on the waiting time for external services and on concurrency pressure.
 
-These limits both control training cost and define the range of environment an Agent can access. Evaluation must keep the same configuration; otherwise a larger search budget by itself may raise answer accuracy.
+These limits control the training cost. They also define the range of environment that an Agent can access. Evaluation must keep the same configuration. If it does not, a larger search budget alone can raise answer accuracy.
 
 ### 8.3.4 Tool Protocol and Token Continuity
 
-The most common problem in multi-turn training is that the tokens after re-rendering the chat template do not match the tokens actually sampled. The tokenizer may clean whitespace, normalize tool-call text, or automatically append turn-end tokens. If the training stage re-encodes the model's text, the old logprobs can no longer correspond one to one with the target tokens.
+The most common problem in multi-turn training is a token mismatch. The tokens after a re-render of the chat template can differ from the tokens that the sampler really produced. The tokenizer can clean whitespace, normalize tool-call text, or automatically append turn-end tokens. If the training stage re-encodes the text of the model, the old logprobs no longer match the target tokens one to one.
 
 This chapter follows two principles:
 
-1. Assistant actions always keep the raw tokens returned by the sampler;
+1. Assistant actions always keep the raw tokens returned by the sampler.
 2. Only newly added end tokens and tool observation tokens are computed via the chat template.
 
-The full responsibility of `build_next_prompt()` is to extract from the chat template only the incremental segment "Assistant end tokens + new observation," and then append it after the real completion returned by the sampler:
+The full responsibility of `build_next_prompt()` is to extract only the incremental segment "Assistant end tokens + new observation" from the chat template. It then appends that segment after the real completion returned by the sampler:
 
 ```python
 def build_next_prompt(
@@ -1801,9 +1801,9 @@ def build_next_prompt(
     ]
 ```
 
-`overlap` handles the case where the sampler has already returned part of the Assistant's end tokens, avoiding duplicated token supplementation. `messages` serves protocol record-keeping and debugging, while `next_prompt_tokens` is the model input actually submitted to the sampler in the next turn; the two must not be conflated.
+`overlap` handles the case where the sampler has already returned part of the end tokens of the Assistant. It prevents duplicated token supplementation. `messages` serves the protocol record and debugging. `next_prompt_tokens` is the model input that the code really submits to the sampler in the next turn. Do not merge these two values.
 
-When constructing the next turn's training data, this is verified again:
+The code verifies this again when it constructs the training data of the next turn:
 
 ```python
 if turn.prompt_tokens[:len(full_tokens)] != full_tokens:
@@ -1812,7 +1812,7 @@ if turn.prompt_tokens[:len(full_tokens)] != full_tokens:
     )
 ```
 
-These two layers of validation catch template rewriting, duplicated end tokens, and observation splicing errors early. For Agentic RL, token continuity is part of algorithmic correctness; a trajectory can look reasonable at the text level yet still produce wrong gradients due to misaligned token boundaries.
+These two layers of validation catch template rewriting, duplicated end tokens, and observation splicing errors early. For Agentic RL, token continuity is part of algorithmic correctness. A trajectory can look reasonable at the text level and still produce wrong gradients from misaligned token boundaries.
 ### 8.3.5 Reward, In-Group Advantage, and the Observation Mask
 
 This chapter uses the short-answer tasks of NQ and HotpotQA. The model must finally output exactly one line:
@@ -1821,11 +1821,11 @@ This chapter uses the short-answer tasks of NQ and HotpotQA. The model must fina
 Answer: <short answer>
 ```
 
-The rule-based reward has three tiers:
+The rule-based reward has three levels:
 
 $$R(\tau)=\begin{cases}1, & \text{format correct and the answer exactly matches},\\ 0, & \text{format correct but the answer is wrong},\\ -0.1, & \text{the final format is invalid}.\end{cases}$$
 
-`reward.py` first extracts the single line containing the final answer, then unifies case, punctuation, English articles, and whitespace:
+`reward.py` first extracts the single line that contains the final answer. It then unifies case, punctuation, English articles, and whitespace:
 
 ```python
 def normalize_answer(text: str) -> str:
@@ -1871,13 +1871,13 @@ def score_answer(
     )
 ```
 
-This code evaluates only the final task outcome, adding no extra score for "how many searches were made" or "whether the query looks good." For the $G$ complete trajectories of the same question, the GRPO in-group baseline is still used:
+This code evaluates only the final task outcome. It adds no extra score for the number of searches or for the quality of the query. The $G$ complete trajectories of one question use the same in-group baseline as GRPO:
 
 $$A_i=R(\tau_i)-\frac{1}{G}\sum_{j=1}^{G}R(\tau_j).$$
 
-The Search-R1 paper discusses optimization methods including both PPO and GRPO. This chapter chooses GRPO's same-question grouping scheme, so that Search-R1 uses the same advantage construction method as Section 8.1.
+The Search-R1 paper discusses optimization methods that include both PPO and GRPO. This chapter chooses the same-question grouping scheme of GRPO, so that Search-R1 uses the same advantage construction method as Section 8.1.
 
-`rollout_batch()` must wait until every trajectory in the group has finished before executing the following function:
+`rollout_batch()` must wait until every trajectory in the group has finished before it runs the following function:
 
 ```python
 def assign_group_advantages(
@@ -1905,9 +1905,9 @@ def assign_group_advantages(
     return degenerate
 ```
 
-When all rewards in a group are identical, every advantage is 0, and this group produces no valid gradient. The training code skips such trajectories and records the degenerate group ratio. The in-group mean cannot be computed after splitting into micro-batches; otherwise the comparison baseline has already been altered.
+When all rewards in a group are identical, every advantage is 0, and the group produces no valid gradient. The training code skips these trajectories and records the ratio of degenerate groups. The code cannot compute the in-group mean after a split into micro-batches. If it did, the comparison baseline would already be changed.
 
-This advantage is assigned to the tokens generated by the Assistant in every turn of the trajectory. Search observations only constitute the state needed for the next decision; they are not actions taken by the policy, so the observation tokens' logprobs and advantages are both set to 0:
+This advantage goes to the tokens that the Assistant generated in every turn of the trajectory. Search observations are only the state that the next decision needs. They are not actions of the policy, so the code sets the logprobs and the advantages of observation tokens to 0:
 
 ```python
 full_tokens.extend(delta_observation)
@@ -1926,13 +1926,13 @@ advantages_by_token.extend(
 )
 ```
 
-This observation mask serves two purposes. First, the trainer does not require the model to predict the text returned by the search engine; second, the observations remain in the context, so subsequent Assistant tokens can condition on that evidence.
+This observation mask serves two purposes. First, the trainer does not require the model to predict the text that the search engine returns. Second, the observations stay in the context, so later Assistant tokens can condition on that evidence.
 
-The search calls and the final answer share one trajectory-level advantage. If the final answer is correct, the successful query planning, search terms, and answer tokens are all encouraged; if the final answer is wrong, the entire chain of actions is suppressed. This is exactly why outcome rewards can train tool-use policies.
+The search calls and the final answer share one trajectory-level advantage. If the final answer is correct, the code encourages the successful query planning, the search terms, and the answer tokens. If the final answer is wrong, the code suppresses the entire chain of actions. This is why outcome rewards can train tool-use policies.
 
 ### 8.3.6 Constructing the Multi-Turn PyTRIO Datum
 
-`build_datum()` in `train.py` brings together the token continuity and observation mask from the preceding sections. Here is the complete core implementation:
+`build_datum()` in `train.py` brings together the token continuity and the observation mask from the previous sections. Here is the complete core implementation:
 
 ```python
 def build_datum(
@@ -2044,15 +2044,15 @@ def build_datum(
     return TrainingDatum(datum, len(input_tokens))
 ```
 
-In the first turn, `delta_observation` is the system prompt, tool definitions, and the user question; in subsequent turns, it is the previous turn's end tokens, the search results, and the new Assistant prefix. They all keep real target tokens, but their old logprobs and advantages are 0. Only the Assistant tokens actually generated by the sampler carry rollout old logprobs and the trajectory advantage.
+In the first turn, `delta_observation` contains the system prompt, the tool definitions, and the user question. In later turns, it contains the end tokens of the previous turn, the search results, and the new Assistant prefix. They all keep real target tokens, but their old logprobs and advantages are 0. Only the Assistant tokens that the sampler really generates carry rollout old logprobs and the trajectory advantage.
 
-The complete group's rewards must all be computed before the correct in-group mean can be obtained. You cannot update the policy as soon as a single trajectory ends, because the rewards of the other branches in the same group are still unknown.
+The code must compute all rewards of a complete group before it can obtain the correct in-group mean. You cannot update the policy as soon as a single trajectory ends. The rewards of the other branches in the same group are still unknown at that point.
 
-Multi-turn trajectories vary greatly in length, and putting all data into one padded batch wastes many tokens. The companion code packs `Datum` objects into multiple micro-batches by sample length, and re-weights the loss by each batch's share of trajectories out of the full rollout trajectory count. This keeps the gradient semantics of the global sample average while controlling per-batch padding size.
+Multi-turn trajectories vary greatly in length. Putting all data into one padded batch wastes many tokens. The companion code packs `Datum` objects into many micro-batches by sample length. It also re-weights the loss by the share of each batch in the total number of rollout trajectories. This keeps the gradient semantics of the global sample average and controls the padding size of each batch.
 
 ### 8.3.7 From Rollout to One Parameter Update
 
-The outer loop of `train.py` strings the preceding modules into a complete training step. The key order must not be swapped:
+The outer loop of `train.py` joins the preceding modules into a complete training step. Do not change the key order:
 
 ```python
 batch = take_batch(
@@ -2097,13 +2097,13 @@ if micro_batches:
     ).result()
 ```
 
-First, `save_weights_and_get_sampling_client()` exports the current LoRA weights at the start of each step, so the old logprobs come from the current policy before this update. Second, `rollout_batch()` has already completed the whole group's rewards and advantages internally, and `build_training_datums()` skips trajectories whose advantages are all 0. Third, all micro-batches only accumulate gradients, and `optim_step()` is called exactly once for the whole logical batch at the end.
+First, `save_weights_and_get_sampling_client()` exports the current LoRA weights at the start of each step. The old logprobs thus come from the current policy before this update. Second, `rollout_batch()` has already computed the rewards and the advantages of the whole group internally. `build_training_datums()` skips trajectories whose advantages are all 0. Third, all micro-batches only accumulate gradients. The code calls `optim_step()` exactly once for the whole logical batch at the end.
 
-PyTRIO averages the samples within one `forward_backward()` call. If the $k$-th micro-batch has $n_k$ trajectories while the full rollout batch has $N$ trajectories, the code first multiplies that batch's advantages by $n_k/N$:
+PyTRIO averages the samples within one `forward_backward()` call. The full rollout batch holds $N$ trajectories. The $k$-th micro-batch holds $n_k$ trajectories. The code first multiplies the advantages of that batch by $n_k/N$:
 
 $$\sum_k\frac{n_k}{N}\operatorname{mean}(\mathcal L_k)=\operatorname{mean}(\mathcal L_{\mathrm{global}}).$$
 
-The corresponding implementation only re-wraps the `Datum` objects; it does not modify the target tokens or the old logprobs:
+The matching implementation only re-wraps the `Datum` objects. It does not change the target tokens or the old logprobs:
 
 ```python
 micro_batch_weight = np.float32(
@@ -2134,11 +2134,11 @@ for item in micro_batch:
     )
 ```
 
-Therefore, dynamic batch splitting only changes the padding and memory usage at execution time, not the sample-averaged gradient of the logical batch.
+Dynamic batch splitting therefore changes only the padding and the memory use at execution time. It does not change the sample-averaged gradient of the logical batch.
 
 ### 8.3.8 Running, Evaluating, and Experimental Boundaries
 
-The Search-R1 code is split by the responsibilities of data, protocol, environment, rollout, and training:
+The Search-R1 code is split by responsibility: data, protocol, environment, rollout, and training:
 
 | File | Role |
 | --- | --- |
@@ -2152,7 +2152,7 @@ The Search-R1 code is split by the responsibilities of data, protocol, environme
 | `eval.py` | Evaluates the Base Model or a checkpoint in the same environment |
 | `analyse.py` | Aggregates evaluation outputs |
 
-The evaluation does not write a separate simplified search logic; it reuses the same `rollout_batch()`. The main difference is that each question keeps only one trajectory, with no need for the training stage's in-group comparison:
+The evaluation does not write a separate simplified search logic. It reuses the same `rollout_batch()`. The main difference is the group size. Each question keeps only one trajectory, so the evaluation needs no in-group comparison of the training stage:
 
 ```python
 config = RolloutConfig(
@@ -2181,7 +2181,7 @@ batch_trajectories = rollout_batch(
 )
 ```
 
-When `model_path` is left empty, `eval.py` creates a Base Model sampler; when given the path returned by `save_weights_for_sampler()`, it evaluates the trained checkpoint. Both kinds of model still use the same protocol, search backend, budget, question set, and answer grader.
+If `model_path` is empty, `eval.py` creates a Base Model sampler. If you pass the path returned by `save_weights_for_sampler()`, it evaluates the trained checkpoint. Both kinds of model use the same protocol, search backend, budget, question set, and answer grader.
 
 First prepare the data:
 
@@ -2189,7 +2189,7 @@ First prepare the data:
 python docs/chapter8/search-r1/prepare_data.py
 ```
 
-The Wikipedia backend needs no API key and suits validating the complete pipeline:
+The Wikipedia backend needs no API key. It suits a check of the complete pipeline:
 
 ```bash
 python docs/chapter8/search-r1/train.py \
@@ -2211,7 +2211,7 @@ python docs/chapter8/search-r1/eval.py \
     --output docs/chapter8/search-r1/eval_result/base.jsonl
 ```
 
-When evaluating the trained sampler weights, keep all other parameters unchanged and only add the checkpoint path:
+If you evaluate the trained sampler weights, keep all other parameters unchanged. Add only the checkpoint path:
 
 ```bash
 python docs/chapter8/search-r1/eval.py \
@@ -2221,33 +2221,33 @@ python docs/chapter8/search-r1/eval.py \
     --output docs/chapter8/search-r1/eval_result/checkpoint.jsonl
 ```
 
-After confirming the pipeline, gradually scale up the number of questions, group size, search count, and trajectory budget. Experiments should record at least:
+After you make sure that the pipeline works, gradually scale up the number of questions, the group size, the search count, and the trajectory budget. Experiments must record at least:
 
-- Exact match of the final answer;
-- Proportion of valid answer formats;
-- Average number of search calls and the zero-search ratio;
-- Search failure rate, timeout rate, and observation truncation rate;
-- Average trajectory length and effective training tokens per step;
-- Degenerate group ratio;
+- Exact match of the final answer.
+- Proportion of valid answer formats.
+- Average number of search calls and the zero-search ratio.
+- Search failure rate, timeout rate, and observation truncation rate.
+- Average trajectory length and effective training tokens per step.
+- Degenerate group ratio.
 - Time spent in the rollout, search, and training stages respectively.
 
-Search results have external dependencies. Online pages get updated, and the ranking of search services may change. When comparing the Base Model with a trained checkpoint, fix the question set, search backend, search budget, sampling parameters, and evaluation time window. If you need strictly reproducible paper-style experiments, fix the retrieval corpus and index as a read-only snapshot.
+Search results have external dependencies. Online pages get updated. The ranking of search services can also change. For a comparison of the Base Model with a trained checkpoint, fix five things. Fix the question set, the search backend, the search budget, the sampling parameters, and the evaluation time window. If you need strictly reproducible paper-style experiments, fix the retrieval corpus and the index as a read-only snapshot.
 
-This chapter only updates the language model policy, keeping the search backend fixed. If the retriever itself also participates in learning, you would need to additionally define a retrieval action space, index versions, and cross-module credit assignment, which is beyond the scope of this section's example.
+This chapter updates only the language model policy. It keeps the search backend fixed. If the retriever also takes part in learning, you must additionally define a retrieval action space, index versions, and credit assignment across modules. That work is beyond this section's example.
 
-Search-R1 shows how to extend GRPO's in-group relative advantages to multi-turn search trajectories containing external observations. The next section's ReTool keeps the same multi-turn rollout and observation mask, swaps the environment from a search engine to a code interpreter, and uses PyTRIO's built-in PPO to update the policy.
+Search-R1 shows how to extend GRPO's in-group relative advantages to multi-turn search trajectories with external observations. The next section covers ReTool. It keeps the same multi-turn rollout and observation mask. It swaps the environment from a search engine to a code interpreter. It uses PyTRIO's built-in PPO to update the policy.
 
 ## 8.4 ReTool
 
-> **Code source:** This section is based on the complete multi-file implementation in the author's open-source repository [agentic-rl-lab/05-retool](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/05-retool). The main text follows the real call chain of `prepare_data.py`, `protocol.py`, `sandbox.py`, `rollout.py`, `reward.py`, `train.py`, `eval.py`, and `analysis.py`.
+> Code source: This section is based on the complete multi-file implementation in the author's open-source repository [agentic-rl-lab/05-retool](https://github.com/KMnO4-zx/agentic-rl-lab/tree/main/05-retool). The main text follows the real call chain of `prepare_data.py`, `protocol.py`, `sandbox.py`, `rollout.py`, `reward.py`, `train.py`, `eval.py`, and `analysis.py`.
 
-Search tools help the model acquire external knowledge; a code interpreter helps the model perform precise computation, symbolic manipulation, and enumeration-based verification. The model can already call Python tools under the guidance of prompts or supervised data, but "being able to call" is not the same as "knowing when to call." Some questions are faster by mental arithmetic, some suit a short program, and some code executions fail and need fixing based on the error message.
+Search tools help the model acquire external knowledge. A code interpreter helps the model do precise computation, symbolic manipulation, and verification by enumeration. The model can already call Python tools under the guidance of prompts or supervised data. But "being able to call" is not the same as "knowing when to call." Some questions are faster by mental arithmetic. Some suit a short program. Some code executions fail, and the error message must guide the fix.
 
-ReTool uses reinforcement learning to train this strategic tool-use ability. The model autonomously decides whether to call the code interpreter, what code to write, how to read the execution results, and when to give the final answer. The environment provides only an outcome reward based on the final math answer, and the tool decisions in successful trajectories are reinforced along with the whole trajectory.
+ReTool uses reinforcement learning to train this strategic ability to use tools. The model decides four things on its own. It decides whether to call the code interpreter, what code to write, how to read the execution results, and when to give the final answer. The environment provides only an outcome reward based on the final math answer. The tool decisions in successful trajectories are reinforced with the whole trajectory.
 
-> **Safety notice:** The accompanying `sandbox.py` is only a resource-limited local subprocess, not a trusted security sandbox. Model-generated code can still read files accessible to the current account, inherit environment variables, and access the network. Real training should run inside a disposable container, a low-privilege virtual machine, or a dedicated sandbox service, with PyTRIO, SwanLab, SSH, and cloud service credentials removed.
+> Safety notice: The accompanying `sandbox.py` is only a resource-limited local subprocess. It is not a trusted security sandbox. Model-generated code can still read files accessible to the current account, inherit environment variables, and access the network. Real training must run inside a disposable container, a low-privilege virtual machine, or a dedicated sandbox service. Remove the PyTRIO, SwanLab, SSH, and cloud service credentials first.
 
-ReTool's code pipeline is structurally similar to Search-R1's, but the environment changes from a search service to a Python process:
+ReTool's code pipeline has the same structure as Search-R1's. The environment changes from a search service to a Python process:
 
 ```text
 prepare_data.py / data.py
@@ -2266,7 +2266,7 @@ eval.py / analysis.py
         ↓ side-by-side evaluation of text-only and ReTool
 ```
 
-Below we again explain along the actual function calls, rather than only looking at the text format of tool calls.
+This section again follows the actual function calls. It does not look only at the text format of tool calls.
 
 ### 8.4.1 From Tool-Call Format to Tool-Use Policy
 
@@ -2283,7 +2283,7 @@ Tool: 37
 Assistant: 根据枚举结果，答案为 \boxed{37} (Based on the enumeration result, the answer is \boxed{37})
 ```
 
-If the code has errors, the model can also use the traceback to self-correct:
+If the code has errors, the model can also self-correct from the traceback:
 
 ```text
 Assistant -> code_interpreter("print(sum(values))")
@@ -2297,27 +2297,27 @@ Tool: 128
 Assistant: \boxed{128}
 ```
 
-From a reinforcement learning perspective, the code, execution errors, numerical results, and final answer together constitute the trajectory. The code interpreter is the environment, the tool calls and natural-language answers generated by the Assistant are all actions, and stdout or stderr is the observation.
+From a reinforcement learning perspective, the code, the execution errors, the numerical results, and the final answer together form the trajectory. The code interpreter is the environment. The tool calls and the natural-language answers from the Assistant are all actions. The stdout or stderr is the observation.
 
 <div align='center'>
     <img src="/images/8-images/8-5-retool.webp" alt="ReTool&#x27;s multi-turn code execution and outcome reward" width="1600" height="1082" loading="lazy" decoding="async" />
     <p>Figure 8.5 ReTool's multi-turn code execution and outcome reward</p>
 </div>
 
-ReTool does not need to award separate points for "having called a tool." The final answer's reward is propagated through the trajectory-level advantage back to the earlier code actions. This way, only tool usage that genuinely helps the task succeed receives positive signal, while redundant or misleading calls are suppressed along failed trajectories.
+ReTool does not award separate points for "having called a tool." The reward of the final answer travels back to the earlier code actions. It travels through the trajectory-level advantage. Thus only tool use that truly helps the task succeed gets a positive signal. Redundant or misleading calls are suppressed along failed trajectories.
 
 ### 8.4.2 Cold-Start, Training Data, and the Tool Protocol
 
 The original ReTool contains two stages:
 
-1. **Cold-start SFT**: using trajectories with code calls and execution feedback, first let the model master the protocol and basic interaction forms;
-2. **Reinforcement Learning**: the model rolls out autonomously, learning when and how to use tools through the final answer's reward.
+1. Cold-start SFT: use trajectories with code calls and execution feedback, so the model first masters the protocol and the basic interaction forms.
+2. Reinforcement Learning: the model rolls out on its own. It learns when and how to use tools from the reward of the final answer.
 
-Cold-start's role is to make the initial policy produce a certain proportion of valid tool calls. If the base model cannot output the tool protocol at all, early trajectories almost all fail, and GRPO can hardly obtain meaningful exploration signal from in-group comparison.
+Cold-start makes the initial policy produce a certain proportion of valid tool calls. If the base model cannot output the tool protocol at all, almost all early trajectories fail. GRPO then gets almost no useful exploration signal from the in-group comparison.
 
-This chapter's code chooses Qwen3.5, which already has native function calling capability, and directly demonstrates the second stage with PyTRIO training, so no dedicated cold-start SFT pipeline is included. This is an important boundary between the teaching implementation and the original paper's setup. When switching to a base model lacking tool-calling ability, you should first prepare SFT data, verify that the valid-call rate reaches a trainable level, and only then start RL.
+This chapter's code uses Qwen3.5, which already has native function calling. It demonstrates the second stage directly with PyTRIO training, so it includes no dedicated cold-start SFT pipeline. This is an important boundary between the teaching implementation and the original paper's setup. If you switch to a base model without tool-calling ability, first prepare SFT data. Then make sure that the valid-call rate reaches a trainable level. Only then start RL.
 
-The RL data comes from DAPO-Math-17k. The raw questions are wrapped in a unified template requiring `Answer: $Answer`, which conflicts with the `\boxed{}` format required in this section, so `prepare_data.py` first strips the outer template and then keeps only the question and reference answer:
+The RL data comes from DAPO-Math-17k. A unified template wraps the raw questions and requires `Answer: $Answer`. That template conflicts with the `\boxed{}` format that this section requires. So `prepare_data.py` first strips the outer template. It then keeps only the question and the reference answer:
 
 ```python
 def normalize_row(
@@ -2358,7 +2358,7 @@ def normalize_row(
     }
 ```
 
-As with Search-R1, the training samples contain neither standard code nor tool-call counts. The policy must explore by itself whether to call the interpreter and what code to generate.
+As with Search-R1, the training samples contain no standard code and no tool-call counts. The policy must explore on its own whether to call the interpreter and what code to generate.
 
 The code interpreter uses a structured tool definition:
 
@@ -2382,7 +2382,7 @@ CODE_TOOL = {
 }
 ```
 
-`protocol.py` likewise parses tool calls strictly. Python code can contain comparison operators, quotes, and multi-line text, so here only the call count, call position, and whether the code is empty are validated:
+`protocol.py` also parses tool calls strictly. Python code can contain comparison operators, quotes, and multi-line text. So here the code checks only the call count, the call position, and whether the code is empty:
 
 ```python
 def parse_assistant(text: str) -> ParsedAssistant:
@@ -2417,22 +2417,22 @@ def parse_assistant(text: str) -> ParsedAssistant:
     )
 ```
 
-Valid output has only three possible outcomes: `tool` enters the code execution environment, `answer` ends the trajectory and receives the outcome reward, and `invalid` ends the trajectory and is treated as a wrong answer. The system makes no guess-based repair of tool calls that are nearly but not fully well-formed; otherwise the definition of an action in the training environment becomes unstable.
+Valid output has only three possible outcomes. `tool` enters the code execution environment. `answer` ends the trajectory and receives the outcome reward. `invalid` ends the trajectory and counts as a wrong answer. The system makes no guess-based repair of tool calls that are almost well-formed but not fully well-formed. Otherwise the definition of an action in the training environment becomes unstable.
 
-The rollout state machine is similar to Search-R1's, except the environment action changes from `search(query)` to `code_interpreter(code)`. Every trajectory is constrained by the following budgets:
+The rollout state machine is similar to Search-R1's. The environment action changes from `search(query)` to `code_interpreter(code)`. The following budgets constrain every trajectory:
 
-- Maximum number of code calls;
-- Maximum number of Assistant turns;
-- Token counts for a single turn's generation and execution result;
-- Total token count of the complete trajectory;
-- Duration of a single execution;
+- Maximum number of code calls.
+- Maximum number of Assistant turns.
+- Token counts for a single turn's generation and execution result.
+- Total token count of the complete trajectory.
+- Duration of a single execution.
 - Concurrency of the local executor.
 
-The same code call does not preserve Python variables or process state. The model must redefine the required data in every call, which makes the trajectory semantics clearer and reduces implicit dependencies between executions.
+The same code call does not keep Python variables or process state. The model must define the required data again in every call. This makes the trajectory semantics clearer. It also reduces hidden dependencies between executions.
 
 ### 8.4.3 How Execution Results Reconnect to the Real Token Trajectory
 
-ReTool likewise cannot decode the Assistant text and re-tokenize it. `protocol.py` uses a placeholder Assistant to extract the template's closing tokens, then appends the observation tokens corresponding to the actual execution result after the real completion:
+ReTool also cannot decode the Assistant text and tokenize it again. `protocol.py` uses a placeholder Assistant to extract the closing tokens of the template. It then appends the observation tokens of the actual execution result after the real completion:
 
 ```python
 def build_next_prompt(
@@ -2504,11 +2504,11 @@ def build_next_prompt(
     ]
 ```
 
-A placeholder is used here because the Qwen chat template may re-segment the reasoning and content of the actually sampled text. The placeholder message is only used to compute the fixed template boundary; the real model actions always come from `completion_tokens`. The next turn's `prompt_tokens` must have the previous turn's full tokens as a prefix; otherwise `train.py` refuses to construct the `Datum`.
+A placeholder is used here. The Qwen chat template can re-segment the reasoning and the content of the text that was actually sampled. The placeholder message serves only to compute the fixed template boundary. The real model actions always come from `completion_tokens`. The next turn's `prompt_tokens` must have the full tokens of the previous turn as a prefix. Otherwise `train.py` refuses to construct the `Datum`.
 
 ### 8.4.4 Outcome Reward and the Interpreter Feedback Mask
 
-This chapter extracts the last $\boxed{}$ from the end of the final answer, using `math_verify` to judge whether the prediction and the reference answer are mathematically equivalent:
+This chapter extracts the last $\boxed{}$ from the end of the final answer. It uses `math_verify` to judge whether the prediction and the reference answer are mathematically equivalent:
 
 ```python
 def extract_last_boxed(text: str) -> str | None:
@@ -2572,11 +2572,11 @@ The reward function is:
 
 $$R(\tau)=\begin{cases}+1, & \text{the final answer is correct},\\ -1, & \text{the answer is wrong or the format is invalid}.\end{cases}$$
 
-Then the centered advantage is computed over the same question's trajectories:
+Then the code computes the centered advantage over the trajectories of the same question:
 
 $$A_i=R(\tau_i)-\bar R.$$
 
-Code execution results are environment observations. They should appear in the model's context while being excluded from the policy loss. The ReTool paper calls this treatment the interpreter feedback mask; this chapter adopts the same token alignment approach as Search-R1:
+Code execution results are environment observations. They must appear in the model's context, but the policy loss excludes them. The ReTool paper calls this treatment the interpreter feedback mask. This chapter uses the same token alignment approach as Search-R1:
 
 | Token region | Kept in context | Old logprob | Advantage |
 | --- | --- | --- | --- |
@@ -2600,24 +2600,24 @@ training_client.forward_backward(
 ).result()
 ```
 
-The original ReTool paper's reinforcement learning stage uses PPO. This chapter keeps the multi-turn code trajectories, the outcome reward, and the interpreter feedback mask, while adding same-question group sampling and centered advantages; therefore, the training pipeline can be summarized as "GRPO constructs relative advantages, PPO clipping controls policy updates."
+The reinforcement learning stage of the original ReTool paper uses PPO. This chapter keeps the multi-turn code trajectories, the outcome reward, and the interpreter feedback mask. It adds same-question group sampling and centered advantages. Thus the training pipeline is "GRPO constructs relative advantages, PPO clipping controls policy updates."
 
-An asymmetric probability-ratio boundary is used here. When the old-policy probability ratio falls below 0.8 or exceeds 1.28, PPO limits the corresponding update. Regardless of the clip parameters, the rollout sampler must be refreshed from the current weights before every training step begins.
+This code uses an asymmetric boundary for the probability ratio. PPO limits the update when the old-policy probability ratio falls below 0.8 or exceeds 1.28. Whatever the clip parameters, the rollout sampler must be refreshed from the current weights before every training step begins.
 
 ### 8.4.5 The Code Execution Environment and Safety Boundaries
 
-Executing model-generated code carries real risk. This chapter's `sandbox.py` uses a local subprocess with the following engineering constraints:
+Model-generated code carries real execution risk. This chapter's `sandbox.py` uses a local subprocess with the following engineering constraints:
 
-- Launches Python with an argument list, not through a shell;
-- Creates an independent process for every call;
-- Sets a wall-clock timeout and a CPU time limit;
-- Kills the entire subprocess group after timeout;
-- Limits the thread count of BLAS and other numeric libraries;
-- Writes stdout and stderr to temporary files and limits how much is read back;
-- Limits the number of concurrent executions;
-- Cleans special tokens that could break the chat template.
+- Launches Python with an argument list, not through a shell.
+- Creates an independent process for every call.
+- Sets a wall-clock timeout and a CPU time limit.
+- Kills the entire subprocess group after timeout.
+- Limits the thread count of BLAS and other numeric libraries.
+- Writes stdout and stderr to temporary files and limits how much is read back.
+- Limits the number of concurrent executions.
+- Cleans special tokens that can break the chat template.
 
-The execution entry point is `LocalPythonSandbox.run_code()`. The model's code is first embedded into a bootstrap that sets CPU limits, then passed via an argument list to a fresh Python process:
+The execution entry point is `LocalPythonSandbox.run_code()`. The code first embeds the model's code into a bootstrap that sets CPU limits. It then passes that bootstrap through an argument list to a fresh Python process:
 
 ```python
 def run_code(self, code: str) -> ExecResult:
@@ -2689,9 +2689,9 @@ def run_code(self, code: str) -> ExecResult:
     )
 ```
 
-stdout and stderr are written to temporary files rather than `PIPE`, and the parent process only reads a limited number of bytes from the end of the files, so even if the model prints continuously, the entire output is not kept in the parent's memory. On timeout, the independent process group created with `start_new_session=True` is terminated in one shot with `killpg()`.
+The code writes stdout and stderr to temporary files, not to `PIPE`. The parent process reads only a limited number of bytes from the end of each file. Thus the parent's memory never holds the entire output, even if the model prints without end. On timeout, the independent process group from `start_new_session=True` is terminated in one shot with `killpg()`.
 
-The execution result is uniformly converted into a single tool observation:
+The code converts every execution result into a single tool observation:
 
 ```python
 def format_tool_content(
@@ -2713,24 +2713,24 @@ def format_tool_content(
     )
 ```
 
-On success it returns stdout, syntax errors and runtime exceptions return the raw stderr, and timeouts return a fixed error text. The current `run_code()` does not automatically add `print()` for the model, so the system prompt explicitly requires the model to print the values it wants to observe; with nothing printed, a successful observation is an empty string.
+On success it returns stdout. Syntax errors and runtime exceptions return the raw stderr. Timeouts return a fixed error text. The current `run_code()` does not add `print()` for the model. So the system prompt explicitly requires the model to print the values that it wants to observe. With no output printed, a successful observation is an empty string.
 
-These measures mainly guard against accidental infinite loops, output floods, and resource exhaustion. They do not constitute trusted security isolation. The local subprocess can still read files accessible to the running account, access the network, read inherited environment variables, or exploit vulnerabilities in the host environment.
+These measures mainly guard against accidental infinite loops, output floods, and resource exhaustion. They are not trusted security isolation. The local subprocess can still read files that the running account can access. It can also access the network, read inherited environment variables, or exploit a vulnerability in the host environment.
 
-Therefore, before running ReTool you must observe the following safety requirements:
+Therefore, you must meet the following safety requirements before you run ReTool:
 
-1. Do not execute model code directly on a host containing production credentials, private keys, or sensitive data;
-2. Use a disposable container, a low-privilege virtual machine, or a dedicated sandbox service;
-3. Disable the network by default, and set a read-only filesystem with a minimized set of visible directories;
-4. Remove unrelated environment variables and cloud service credentials;
-5. Set hard limits on CPU, memory, process count, disk, and execution time;
-6. Save the code, exit status, and resource metrics to make auditing anomalous trajectories easier.
+1. Do not execute model code directly on a host that contains production credentials, private keys, or sensitive data.
+2. Use a disposable container, a low-privilege virtual machine, or a dedicated sandbox service.
+3. Disable the network by default. Set a read-only filesystem with a minimal set of visible directories.
+4. Remove unrelated environment variables and cloud service credentials.
+5. Set hard limits on CPU, memory, process count, disk, and execution time.
+6. Save the code, the exit status, and the resource metrics. This makes the audit of anomalous trajectories easier.
 
-The "independent execution" in the tool description means that each call shares no Python state; it does not represent host-level security isolation. Even a teaching trial run should first be placed in an isolated environment.
+The "independent execution" in the tool description means that each call shares no Python state. It does not mean host-level security isolation. Even a teaching trial run must first run in an isolated environment.
 
 ### 8.4.6 How the Multi-Turn Code Rollout Advances
 
-`rollout.py` separately stores the trainable Assistant actions, the full trajectory state, and the code calls that have "been generated but not yet executed":
+`rollout.py` stores three things separately: the trainable Assistant actions, the full trajectory state, and the code calls that are generated but not yet executed:
 
 ```python
 @dataclass
@@ -2771,7 +2771,7 @@ class PendingExecution:
     completion_tokens: list[int]
 ```
 
-`begin_advance()` consumes one Assistant output and decides whether the trajectory ends or enters the execution environment:
+`begin_advance()` consumes one Assistant output. It then decides whether the trajectory ends or enters the execution environment:
 
 ```python
 def begin_advance(
@@ -2832,7 +2832,7 @@ def begin_advance(
     )
 ```
 
-Many trajectories within the same round may request code execution simultaneously. They can run concurrently, but each trajectory must still wait for its own observation to return before starting the next round of generation:
+Many trajectories in the same round can request code execution at the same time. They run concurrently. But each trajectory must still wait for its own observation to return before the next round of generation starts:
 
 ```python
 async def execute_pending_async(
@@ -2902,15 +2902,15 @@ async def advance_round(
             progress_callback(1)
 ```
 
-`finish_advance()` calls `format_tool_content()` from the previous section, then uses `build_next_prompt()` from Section 8.4.3 to construct continuous tokens. If the execution result is too long, `fit_tool_content()` repeatedly keeps the tail, because tracebacks and the final numeric values usually sit at the end; when the result still does not fit the trajectory budget, that trajectory ends directly.
+`finish_advance()` calls `format_tool_content()` from the previous section. It then uses `build_next_prompt()` from Section 8.4.3 to construct continuous tokens. If the execution result is too long, `fit_tool_content()` keeps the tail again and again, because tracebacks and final numeric values usually sit at the end. If the result still does not fit the trajectory budget, that trajectory ends at once.
 
-The first-round branching is identical to Search-R1's: each question submits only one prompt with `num_samples=group_size`. Each returned sequence becomes an independent trajectory via `copy.deepcopy(root)`. After execution results return, each branch's prompt differs, so all subsequent requests set `num_samples=1`, until a final answer is output or the code-call, turn, and token budgets are exhausted.
+The first-round branching is the same as in Search-R1. Each question submits only one prompt with `num_samples=group_size`. Each returned sequence becomes an independent trajectory through `copy.deepcopy(root)`. After the execution results return, each branch has a different prompt. So all later requests set `num_samples=1`, until the model outputs a final answer or exhausts the code-call, turn, and token budgets.
 
-Only after all trajectories finish does the state machine call `score_trajectory()` and `assign_group_advantages()` in turn. Therefore, one trajectory's traceback can influence its own later code generation, but cannot cross the trajectory boundary to affect other branches in the same group.
+The state machine calls `score_trajectory()` and `assign_group_advantages()` in turn, but only after all trajectories finish. Thus one trajectory's traceback can affect its own later code generation. It cannot cross the trajectory boundary to affect other branches in the same group.
 
 ### 8.4.7 Training ReTool with PyTRIO
 
-First, create a sampling client from the current weights and generate multi-turn trajectories for the same question:
+First, create a sampling client from the current weights. Then generate multi-turn trajectories for the same question:
 
 ```python
 sampling_client = (
@@ -2926,17 +2926,17 @@ trajectories = rollout_batch(
 )
 ```
 
-`rollout_batch()` accomplishes the following:
+`rollout_batch()` does the following:
 
-1. In the first round, samples `group_size` branches for the same question;
-2. Parses the `code_interpreter` calls in each branch;
-3. Concurrently executes the model's code and appends tool observations;
-4. Continues sampling trajectories that are not yet finished;
-5. Extracts the final answer and computes the reward and the in-group advantage.
+1. In the first round, it samples `group_size` branches for the same question.
+2. It parses the `code_interpreter` calls in each branch.
+3. It executes the model's code concurrently and appends tool observations.
+4. It continues sampling trajectories that are not yet finished.
+5. It extracts the final answer and computes the reward and the in-group advantage.
 
-Every training step calls `save_weights_and_get_sampling_client()` again, guaranteeing that the rollout old logprobs come from the current policy before the update. If all trajectories for a question answer correctly or all answer incorrectly, the centered advantages are all 0, and `build_training_datums()` skips that group; when no `Datum` remains, the step does not execute `optim_step()`.
+Every training step calls `save_weights_and_get_sampling_client()` again. This makes sure that the rollout old logprobs come from the current policy before the update. If all trajectories for a question answer correctly or all answer incorrectly, the centered advantages are all 0, and `build_training_datums()` skips that group. If no `Datum` remains, the step does not execute `optim_step()`.
 
-Then each complete trajectory is constructed into one `Datum`. ReTool's `build_datum()` follows the same prefix-extension rules as Section 8.3.6; the core loop is as follows:
+The code then constructs each complete trajectory into one `Datum`. ReTool's `build_datum()` follows the same prefix-extension rules as Section 8.3.6. The core loop is as follows:
 
 ```python
 for turn_index, turn in enumerate(trajectory.turns):
@@ -2990,9 +2990,9 @@ datum = trio.Datum(
 )
 ```
 
-`delta_observation` contains the initial question, the Assistant end tokens, and the stdout, stderr, or timeout text, all with advantage 0; the Assistant's reasoning, code calls, and final answer share the trajectory advantage. This is the actual code form of the interpreter feedback mask.
+`delta_observation` contains the initial question, the Assistant end tokens, and the stdout, stderr, or timeout text. All of these have advantage 0. The Assistant's reasoning, code calls, and final answer share the trajectory advantage. This is the actual code form of the interpreter feedback mask.
 
-Because trajectory lengths vary greatly, the code then performs dynamic micro-batch packing:
+Trajectory lengths vary a great deal, so the code then does dynamic micro-batch packing:
 
 ```python
 datums = build_training_datums(trajectories)
@@ -3013,11 +3013,11 @@ if micro_batches:
     training_client.optim_step(adam_params).result()
 ```
 
-PyTRIO averages the samples within a single `forward_backward()` call. When micro-batches differ in size, accumulating them directly would amplify the weight of small batches. This chapter scales the advantages by each micro-batch's share of samples out of the global trajectory count:
+PyTRIO averages the samples within a single `forward_backward()` call. Micro-batches can differ in size. Direct accumulation then amplifies the weight of small batches. This chapter scales the advantages by the share of samples that each micro-batch holds out of the global trajectory count:
 
 $$\sum_k \frac{n_k}{N}\mathrm{mean}(\mathcal L_k) = \mathrm{mean}(\mathcal L_{\mathrm{global}}).$$
 
-This way, dynamic batch splitting only changes how execution is carried out, not the gradient meaning of the global sample average.
+Thus dynamic batch splitting changes only how the execution runs. It does not change the gradient meaning of the global sample average.
 
 ### 8.4.8 Running and Evaluating ReTool
 
@@ -3029,15 +3029,15 @@ The companion directory contains the following files:
 | `data.py` | Loads the unified math samples |
 | `protocol.py` | Defines the code tool and the multi-turn message protocol |
 | `sandbox.py` | Executes Python code and records resource metrics |
-| `rollout.py` | Runs the multi-turn "generate—execute—observe" state machine |
+| `rollout.py` | Runs the multi-turn "generate, execute, observe" state machine |
 | `reward.py` | Extracts $\boxed{}$ and performs mathematical-equivalence checking |
 | `train.py` | Builds the feedback mask and micro-batches, and runs PPO |
 | `eval.py` | Uniformly evaluates the text-only and ReTool modes |
 | `analysis.py` | Aggregates metrics across checkpoints |
 
-The `train.jsonl` of DAPO-Math-17k generated by `prepare_data.py` is used for RL, and an additional 50-question `dev.jsonl` is split off for quick checks. The formal `eval.py` uses a fixed set of 30 AIME 2025 questions, avoiding reporting results directly on training questions.
+The RL stage uses the `train.jsonl` of DAPO-Math-17k that `prepare_data.py` generates. The code also splits off a 50-question `dev.jsonl` for quick checks. The formal `eval.py` uses a fixed set of 30 AIME 2025 questions. This avoids reporting results directly on training questions.
 
-In ReTool mode, each question's `val_n` candidate responses are still generated by the same multi-turn state machine:
+In ReTool mode, the same multi-turn state machine still generates the `val_n` candidate responses for each question:
 
 ```python
 config = RolloutConfig(
@@ -3065,14 +3065,14 @@ trajectories = await rollout_batch_async(
 )
 ```
 
-The `text-only` mode registers no code tool and directly samples `val_n` single-turn answers for the same question. Both modes ultimately write per-question JSONL and aggregate:
+The `text-only` mode registers no code tool. It samples `val_n` single-turn answers directly for the same question. Both modes write per-question JSONL and then aggregate:
 
-- `Average@N`: the average accuracy across all generated results;
-- `Pass@N`: the proportion of questions answered correctly by at least one candidate;
-- `format_rate`: the proportion from which a valid `\boxed{}` can be extracted;
+- `Average@N`: the average accuracy across all generated results.
+- `Pass@N`: the proportion of questions answered correctly by at least one candidate.
+- `format_rate`: the proportion from which a valid `\boxed{}` can be extracted.
 - `mean_code_calls` and `mean_turns`: tool cost and trajectory length.
 
-Therefore, comparing checkpoints requires at least fixing the question set, `val_n`, temperature, top-p, the maximum trajectory length, and the answer extraction logic; when comparing text-only with ReTool, you should additionally report execution latency and code-call counts.
+Thus a checkpoint comparison must at least fix the question set, `val_n`, temperature, top-p, the maximum trajectory length, and the answer extraction logic. If you compare text-only with ReTool, also report the execution latency and the code-call counts.
 
 First prepare the data:
 
@@ -3080,7 +3080,7 @@ First prepare the data:
 python docs/chapter8/retool/prepare_data.py
 ```
 
-After confirming the code executor runs in an isolated environment, do a one-step trial run:
+After you make sure that the code executor runs in an isolated environment, do a one-step trial run:
 
 ```bash
 python docs/chapter8/retool/train.py \
@@ -3092,7 +3092,7 @@ python docs/chapter8/retool/train.py \
     --swanlab-mode disabled
 ```
 
-Once the local AIME 2025 data is ready, first run the no-tool baseline, then the ReTool evaluation with the same sampling parameters:
+When the local AIME 2025 data is ready, first run the no-tool baseline. Then run the ReTool evaluation with the same sampling parameters:
 
 ```bash
 python docs/chapter8/retool/eval.py \
@@ -3110,36 +3110,36 @@ python docs/chapter8/retool/eval.py \
     --output docs/chapter8/retool/eval-results/aime25-retool-base.jsonl
 ```
 
-When evaluating the trained model, add the same `--model-path trio://...` to both commands. Only when the Base Model, the checkpoint, text-only, and ReTool share the same sampling setup can the difference be attributed to training or to the tool environment.
+If you evaluate the trained model, add the same `--model-path trio://...` to both commands. The difference is attributable to training or to the tool environment only if four setups match: the Base Model, the checkpoint, text-only, and ReTool.
 
-Training metrics should cover three layers at once: task, policy, and environment:
+Training metrics must cover three layers at once: task, policy, and environment:
 
-- **Task outcomes**: accuracy, the proportion of valid $\boxed{}$, the degenerate group ratio;
-- **Tool behavior**: code-call rate, average calls per trajectory, accuracy with zero calls;
-- **Self-correction**: the proportion of trajectories that retry after a first execution error and ultimately answer correctly;
-- **Environment state**: execution success rate, exception rate, timeout rate, average latency;
-- **Policy stability**: PPO probability ratio, clip fraction, response length;
-- **System efficiency**: time spent in rollout, the executor, remote training, and checkpointing.
+- Task outcomes: accuracy, the proportion of valid $\boxed{}$, the degenerate group ratio.
+- Tool behavior: code-call rate, average calls per trajectory, accuracy with zero calls.
+- Self-correction: the proportion of trajectories that retry after a first execution error and then answer correctly in the end.
+- Environment state: execution success rate, exception rate, timeout rate, average latency.
+- Policy stability: PPO probability ratio, clip fraction, response length.
+- System efficiency: time spent in rollout, the executor, remote training, and checkpointing.
 
-During evaluation you can run the text-only and ReTool modes separately. The two must use the same question set, identical sampling parameters, and the same answer grader to reveal the net benefit brought by the tool environment. The tool mode should also report the extra latency and execution cost, because accuracy gains usually come with more environment calls.
+During evaluation you can run the text-only and ReTool modes separately. The two modes must use the same question set, the same sampling parameters, and the same answer grader. Only then do they show the net benefit that the tool environment brings. The tool mode must also report the extra latency and the execution cost, because accuracy gains usually come with more environment calls.
 
-At this point we have moved from GRPO's single-turn outcome rewards and OPD's token-by-token Teacher feedback to the multi-turn environment interaction of Search-R1 and ReTool. The chapter summary below gathers the four modules back into the same "rollout—feedback—advantage—policy update" data flow.
+The chapter has now moved from GRPO's single-turn outcome rewards and OPD's token-by-token Teacher feedback to the multi-turn environment interaction of Search-R1 and ReTool. The chapter summary below gathers the four modules back into one data flow: rollout, feedback, advantage, policy update.
 
 ## Chapter Summary
 
-Starting from GRPO, this chapter gradually built a large language model reinforcement learning path that can scale to Agents.
+This chapter started from GRPO. Step by step, it built a reinforcement learning path for large language models that can scale to Agents.
 
-GRPO uses multiple samples of the same question to construct in-group relative advantages, eliminating the need to train a separate Value Model. It splits the algorithm into three clear layers: the policy generates rollouts, the environment gives rewards, and the update loss optimizes the model based on the probability ratio between new and old policies. A correct reward, token alignment, and on-policy sampler refresh jointly determine whether training is effective.
+GRPO uses multiple samples of the same question to construct in-group relative advantages. It needs no separate Value Model. It splits the algorithm into three clear layers. The policy generates rollouts, the environment gives rewards, and the update loss optimizes the model from the probability ratio between the new and old policies. Three things together decide whether training is effective: a correct reward, token alignment, and an on-policy sampler refresh.
 
-OPD keeps the on-policy rollout, replacing the rule-based reward with the Teacher's token-by-token probability feedback on the Student's trajectories. Reverse KL provides a dense signal for every action, letting a small model learn the Teacher's abilities on the states it will actually visit. The Teacher and Student's tokenizers, reasoning modes, and complementary capabilities need to be verified before training.
+OPD keeps the on-policy rollout. It replaces the rule-based reward with the Teacher's token-by-token probability feedback on the Student's trajectories. Reverse KL gives a dense signal for every action. Thus a small model learns the Teacher's abilities on the states that it will actually visit. Before training, you must make sure that the Teacher and the Student agree. Check their tokenizers, their reasoning modes, and their complementary capabilities.
 
-Search-R1 and ReTool further expand the trajectory into multi-turn environment interaction. Search results and code execution results enter the context, yet are excluded from the policy loss via the observation mask; the model-generated search terms, code, reasoning, and final answer share the trajectory-level outcome signal. Both reuse GRPO's group sampling and relative advantages, replacing only the tool protocol, the environment implementation, and the reward.
+Search-R1 and ReTool expand the trajectory further into multi-turn environment interaction. Search results and code execution results enter the context. The observation mask keeps them out of the policy loss. The search terms, the code, the reasoning, and the final answer that the model generates all share the trajectory-level outcome signal. Both sections reuse GRPO's group sampling and relative advantages. They replace only the tool protocol, the environment implementation, and the reward.
 
-The four examples ultimately converge into the same PyTRIO data flow:
+In the end, the four examples converge into the same PyTRIO data flow:
 
 $$\text{current policy}\rightarrow\text{diverse rollouts}\rightarrow\text{environment or Teacher feedback}\rightarrow\text{token-level advantage}\rightarrow\text{policy update}\rightarrow\text{new policy}.$$
 
-After mastering this data flow, a new Agentic RL task can be designed starting from five questions:
+After you master this data flow, you can design a new Agentic RL task from five questions:
 
 1. Which actions can the Agent perform, and what observations will the environment return?
 2. Under what conditions does a trajectory end, and how do budgets constrain it?
@@ -3147,9 +3147,9 @@ After mastering this data flow, a new Agentic RL task can be designed starting f
 4. Which tokens are policy actions, and which tokens must be masked?
 5. Are the rollout, old logprobs, advantages, and current weights strictly aligned?
 
-Only when these five questions all have verifiable answers does a tool Demo have the foundation to enter reinforcement learning training.
+A tool Demo has the foundation to enter reinforcement learning training only when all five questions have verifiable answers.
 
-> **Keep learning:** Limited by space and this chapter's scope, this chapter concentrates on GRPO, OPD, Search-R1, and ReTool, and many Agentic RL methods and interactive environments could not be covered one by one. If you want to keep learning OPSD, DAPO, GSPO, ALFWorld, and more, visit the author's continuously maintained [agentic-rl-lab](https://github.com/KMnO4-zx/agentic-rl-lab). The repository will keep collecting the principles of related algorithms, runnable code, and real training processes.
+> Keep learning: Space and this chapter's scope limit the coverage. This chapter concentrates on GRPO, OPD, Search-R1, and ReTool, and many Agentic RL methods and interactive environments have no place here. If you want to keep learning OPSD, DAPO, GSPO, ALFWorld, and more, visit the author's continuously maintained [agentic-rl-lab](https://github.com/KMnO4-zx/agentic-rl-lab). The repository will keep collecting the principles of related algorithms, runnable code, and real training processes.
 
 ## References
 
