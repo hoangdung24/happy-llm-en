@@ -1,5 +1,6 @@
 ---
 title: "Chapter 8: LLM Reinforcement Learning"
+description: "Reinforcement learning for LLMs: policy gradients, PPO, reward design, and how RL turns a pretrained model into an assistant."
 ---
 
 Chapter 4 introduced Reinforcement Learning from Human Feedback (RLHF), the reward model, Proximal Policy Optimization (PPO), and the basic pipeline of instruction alignment. Chapter 6 built the engineering foundations of large language model training. Chapter 7 gave the model planning, memory, and tool calling.

@@ -1,5 +1,6 @@
 ---
 title: "Chapter 3: Pre-trained Language Models"
+description: "Pre-trained language models: encoder-only models like BERT, decoder-only models like GPT, and how pretraining and fine-tuning work."
 ---
 
 ## 3.1 Encoder-only PLM

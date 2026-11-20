@@ -1,0 +1,8 @@
+# robots.txt for the Happy-LLM English translation.
+# Allow crawling everywhere except the client-side search index, which
+# duplicates page text and has no standalone value in search results.
+User-agent: *
+Allow: /
+Disallow: /pagefind/
+
+Sitemap: https://happy-llm-en.hoangdung24.workers.dev/sitemap-index.xml

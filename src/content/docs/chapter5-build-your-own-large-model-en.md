@@ -1,5 +1,6 @@
 ---
 title: "Chapter 5: Build Your Own Large Model"
+description: "Build a large language model from scratch: dataset prep, tokenizer training, model code, training loop, and evaluation steps."
 ---
 
 

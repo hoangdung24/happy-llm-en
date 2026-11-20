@@ -1,5 +1,6 @@
 ---
 title: "Chapter 6 Supplement: Preference Alignment (WIP)"
+description: "Preference alignment for LLMs: reward modelling, RLHF, and direct preference optimization. Work in progress chapter."
 ---
 
 Before we get into the details of reinforcement learning, let us first look at its origins. Reinforcement Learning (RL) is nothing new. Its theoretical foundations go back to behavioral psychology in the early 20th century. Edward Thorndike and B.F. Skinner studied animal learning in that period. Thorndike proposed the "Law of Effect". If a behavior brings a positive outcome, the probability that the animal repeats it increases. Skinner developed this idea further. He proposed the theory of operant conditioning, which shapes behavior through rewards and punishments.

@@ -1,3 +1,17 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: upgrade-insecure-requests
+
+# Pages and assets are content-hashed; long cache is safe.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker must never be served from a stale cache.
+/sw.js
+  Cache-Control: no-cache
+
+# The search index changes every build; let it revalidate.
+/pagefind/*
+  Cache-Control: public, max-age=3600

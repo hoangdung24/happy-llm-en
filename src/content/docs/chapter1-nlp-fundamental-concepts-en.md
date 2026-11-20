@@ -1,5 +1,6 @@
 ---
 title: "Chapter 1: Fundamental Concepts of NLP"
+description: "NLP fundamentals: what natural language processing is, tokenization, text representation, and how rule-based methods gave way to deep learning."
 ---
 
 Natural Language Processing (NLP) is an important branch of artificial intelligence. NLP helps computers understand and process human language, so that humans and machines can communicate naturally. Information technology develops fast, and text data is now a daily part of our lives. NLP tools help us extract useful information from large amounts of text. They also help us understand the deeper meaning of language. The NLP field passed through several technology changes. It started with rule-based methods, moved to statistical learning, and now uses deep learning in many areas. Text representation is one core technology of NLP. Research and progress in text representation decide how well NLP systems perform.

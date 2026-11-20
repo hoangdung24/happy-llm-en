@@ -1,5 +1,6 @@
 ---
 title: "Chapter 6: Training LLMs in Practice"
+description: "Training LLMs in practice: distributed training, mixed precision, data pipelines, checkpointing, and monitoring a real run."
 ---
 
 Chapter 5 built the LLaMA2 model from scratch and implemented its full pretraining and fine-tuning pipeline. This chapter covers the practice of the LLM training pipeline. It shows how to use mainstream LLM frameworks to train models and optimize performance.

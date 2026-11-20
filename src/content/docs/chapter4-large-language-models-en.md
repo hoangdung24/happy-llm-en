@@ -1,5 +1,6 @@
 ---
 title: "Chapter 4: Large Language Models"
+description: "Large language models: scaling laws, emergent abilities, and the training and inference stack behind modern LLMs."
 ---
 
 ## 4.1 What is an LLM

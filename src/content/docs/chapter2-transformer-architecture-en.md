@@ -1,5 +1,6 @@
 ---
 title: "Chapter 2: Transformer Architecture"
+description: "The Transformer architecture explained: self-attention, multi-head attention, encoder and decoder blocks, and positional encoding."
 ---
 
 ## 2.1 The Attention Mechanism

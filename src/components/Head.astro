@@ -14,3 +14,23 @@ import woff2 from '@fontsource-variable/mulish/files/mulish-latin-wght-normal.wo
 	type="font/woff2"
 	crossorigin="anonymous"
 />
+
+<script is:inline>
+	// Register the Workbox service worker (see scripts/build-sw.mjs).
+	// Only active in production builds; `astro dev` does not serve /sw.js.
+	if ('serviceWorker' in navigator) {
+		window.addEventListener('load', () => {
+			navigator.serviceWorker.register('/sw.js').catch(() => {});
+		});
+
+		// Cloudflare redirects /foo/index.html to /foo/, so the precache manifest
+		// and the cached copy of a navigated URL use different keys. Turn any
+		// ".html" URL into its canonical directory form before the SW sees it.
+		if (!location.pathname.endsWith('/')) {
+			const path = location.pathname.endsWith('.html')
+				? location.pathname.slice(0, -'index.html'.length)
+				: location.pathname;
+			history.replaceState(history.state, '', path + location.search + location.hash);
+		}
+	}
+</script>

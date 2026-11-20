@@ -7,8 +7,9 @@ import sitemap from '@astrojs/sitemap';
 export default defineConfig({
 	site: 'https://happy-llm-en.hoangdung24.workers.dev',
 	build: {
-		// Inline small render-blocking stylesheets to cut request round-trips.
-		inlineStylesheets: 'auto',
+		// Inline all page CSS into the HTML. The stylesheet is ~18KB of
+		// render-blocking CSS on every page, so a request costs more than the bytes.
+		inlineStylesheets: 'always',
 	},
 	integrations: [
 		starlight({
@@ -20,6 +21,8 @@ export default defineConfig({
 				Head: './src/components/Head.astro',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/datawhalechina/happy-llm' }],
+			// Inline the code-block stylesheet instead of emitting ec.<hash>.css.
+			expressiveCode: { emitExternalStylesheet: false },
 			sidebar: [
 				{
 					label: 'Happy-LLM (English)',

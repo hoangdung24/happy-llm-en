@@ -1,5 +1,6 @@
 ---
 title: "Chapter 7: LLM Applications"
+description: "LLM applications: retrieval-augmented generation, agents, tool use, and building practical products on top of a language model."
 ---
 
 The previous chapters introduced the foundational knowledge of large models, training methods, and fine-tuning techniques. This chapter focuses on the key technologies and frameworks for applying large models in practice. It covers core topics such as large model evaluation, RAG (Retrieval-Augmented Generation), and Agent (intelligent agent). These topics help readers understand the practical application scenarios and implementation methods of large models.
