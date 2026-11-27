@@ -2,10 +2,21 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import { unified } from '@astrojs/markdown-remark';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://happy-llm-en.hoangdung24.workers.dev',
+	markdown: {
+		// Sätteri, Astro 7's default processor, has no remark/rehype hooks, so switch
+		// to unified to get remark-math + rehype-katex for KaTeX math blocks.
+		processor: unified({
+			remarkPlugins: [remarkMath],
+			rehypePlugins: [rehypeKatex],
+		}),
+	},
 	build: {
 		// Inline all page CSS into the HTML. The stylesheet is ~18KB of
 		// render-blocking CSS on every page, so a request costs more than the bytes.
@@ -21,8 +32,6 @@ export default defineConfig({
 				Head: './src/components/Head.astro',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/datawhalechina/happy-llm' }],
-			// Inline the code-block stylesheet instead of emitting ec.<hash>.css.
-			expressiveCode: { emitExternalStylesheet: false },
 			sidebar: [
 				{
 					label: 'Happy-LLM (English)',

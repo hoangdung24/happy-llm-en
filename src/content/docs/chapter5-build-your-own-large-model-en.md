@@ -3,13 +3,11 @@ title: "Chapter 5: Build Your Own Large Model"
 description: "Build a large language model from scratch: dataset prep, tokenizer training, model code, training loop, and evaluation steps."
 ---
 
-
-
 ## 5.1 Implementing a LLaMA2 Large Model by Hand
 
-Meta (formerly Facebook) released LLaMA, its first Transformer-based large language model, in February 2023. It released LLaMA2, a model in the same family, in July of the same year. Chapter 4 covered LLMs and their training. This section shows how to implement a LLaMA2 model by hand.
+Meta released LLaMA, its first Transformer-based large language model, in February 2023. It released LLaMA2 in July 2023. Chapter 4 covered LLMs and their training. This section shows how to implement a LLaMA2 model by hand.
 
-Figure 5.1 shows the architecture of the LLaMA2 model:
+Figure 5.1 shows the LLaMA2 architecture:
 
 <div align='center'>
     <img src="/images/5-images/LLama2.webp" alt="Figure 5.1 LLaMA2 Architecture" width="1600" height="1142" loading="lazy" decoding="async" />
@@ -18,9 +16,9 @@ Figure 5.1 shows the architecture of the LLaMA2 model:
 
 ### 5.1.1 Defining the Hyperparameters
 
-First define the hyperparameters. These hyperparameters include the model size, the number of layers, the number of heads, the embedding dimension, and the hidden layer dimension. You can adjust them to the actual situation.
+Define the hyperparameters. They set the model size, the number of layers, the number of heads, the embedding dimension, and the hidden layer dimension. You can adjust them for your project.
 
-Here we define a custom `ModelConfig` class to store and record our hyperparameters. We inherit from the `PretrainedConfig` class, the parameter class in the `transformers` library. This inheritance gives us some features of the `transformers` library. It also makes export of Hugging Face models easier later.
+Here we define a custom `ModelConfig` class to store our hyperparameters. It inherits from `PretrainedConfig`, the parameter class in the `transformers` library. This inheritance gives features of the `transformers` library. It also makes export of Hugging Face models easier later.
 
 ```python
 from transformers import PretrainedConfig
@@ -56,9 +54,9 @@ class ModelConfig(PretrainedConfig):
         super().__init__(**kwargs)
 ```
 
-> Whenever `args` appears in the code below, it refers by default to the above `ModelConfig` configuration.
+> Whenever `args` appears in the code below, it refers to the `ModelConfig` configuration.
 
-Here is what some of these hyperparameters mean. `dim` is the model dimension. `n_layers` is the number of Transformer layers. `n_heads` is the number of attention heads. `vocab_size` is the vocabulary size. `max_seq_len` is the maximum input sequence length. The code above also includes detailed comments for every parameter. We will use these hyperparameters to build our model in the code that follows.
+`dim` is the model dimension. `n_layers` is the number of Transformer layers. `n_heads` is the number of attention heads. `vocab_size` is the vocabulary size. `max_seq_len` is the maximum input sequence length. The code comments explain every parameter. We use these hyperparameters to build the model next.
 
 ### 5.1.2 Building RMSNorm
 
@@ -72,9 +70,9 @@ where:
 - $x_i$ is the $i$-th element of the input vector
 - $\gamma$ is a learnable scaling parameter (corresponding to `self.weight` in the code)
 - $n$ is the dimension of the input vector
-- $\epsilon$ is a small constant used for numerical stability (to avoid division by zero)
+- $\epsilon$ is a small constant that avoids division by zero
 
-This normalization stabilizes the learning process. It keeps the scale of the weights from becoming too large or too small. This stability matters most in deep learning models with many layers.
+RMSNorm keeps the scale of the weights from growing too large or too small. This stability matters most in deep models with many layers.
 
 Implement `RMSNorm` with this code:
 
@@ -102,7 +100,7 @@ class RMSNorm(nn.Module):
         return output * self.weight
 ```
 
-Test the `RMSNorm` module with this code. The final output shape is `torch.Size([1, 50, 768])`, the same as our input shape. This match shows that the module works correctly. It also shows that normalization does not change the input shape.
+Test the `RMSNorm` module with this code. The output shape is `torch.Size([1, 50, 768])`. It matches the input shape. This match shows the module works correctly. Normalization does not change the input shape.
 
 ```python
 norm = RMSNorm(args.dim, args.norm_eps)
@@ -116,7 +114,7 @@ torch.Size([1, 50, 768])
 
 ### 5.1.3 Building LLaMA2 Attention
 
-In the LLaMA2 model, only the LLaMA2-70B model uses Grouped-Query Attention (GQA). We still choose GQA for our LLaMA Attention module. GQA improves the efficiency of the model and saves some GPU memory.
+Only the LLaMA2-70B model uses Grouped-Query Attention (GQA). Grouped-Query Attention (GQA) shares key-value heads across queries. We use GQA for our attention module. GQA makes the model more efficient and uses less GPU memory.
 
 <div align='center'>
     <img src="/images/5-images/llama2-attention.webp" alt="Figure 5.2 LLaMA2 Attention Structure" width="1600" height="3128" loading="lazy" decoding="async" />
@@ -125,7 +123,7 @@ In the LLaMA2 model, only the LLaMA2-70B model uses Grouped-Query Attention (GQA
 
 #### 5.1.3.1 repeat_kv
 
-In the LLaMA2 model, we must expand the dimensions of the keys and values. The expanded dimensions must match those of the queries. This expansion makes the attention computation possible. Implement `repeat_kv` with this code:
+Expand the key and value dimensions so they match the query dimensions. This makes the attention computation possible. Implement `repeat_kv` with this code:
 
 ```python
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -144,20 +142,18 @@ def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
     )
 ```
 
-In the code above:
+The code does this:
 
-- First, get the shape of the input tensor. The code reads `x.shape`, which holds the batch size (bs), the sequence length (slen), the number of key/value heads (n_kv_heads), and the per-head dimension (head_dim).
-
-- Then, check the repetition count. The code checks whether the repetition count n_rep is 1. If it is 1, the keys and values need no repetition, and the code returns the original tensor x directly.
-
-- Finally, expand and reshape the tensor:
-  - Add a new dimension after the third dimension (the key/value head dimension), forming `x[:, :, :, None, :]`.
-  - Use the `expand` method to expand the newly added dimension to `n_rep`. This step repeats the key/value pairs.
-  - Finally, reshape with the reshape method to merge the expanded dimension back into the key/value head count, as `x.reshape(bs, slen, n_kv_heads * n_rep, head_dim)`. The final tensor shape then matches the query dimension.
+- Get the shape of the input tensor. `x.shape` holds the batch size, the sequence length, the number of key/value heads, and the head dimension.
+- Check the repetition count. If `n_rep` is 1, the keys and values need no repetition. The code returns the original tensor `x` directly.
+- Expand and reshape the tensor:
+  - Add a new dimension after the key/value head dimension, forming `x[:, :, :, None, :]`.
+  - Use `expand` to expand the new dimension to `n_rep`. This repeats the key-value pairs.
+  - Use `reshape` to merge the expanded dimension into the key/value head count. The final shape matches the query dimension.
 
 #### 5.1.3.2 Rotary Embeddings
 
-Next we implement rotary embeddings. Rotary embeddings are an important component of the LLaMA2 model. They give the attention mechanism stronger contextual information, and they improve model performance.
+Rotary embeddings give the attention mechanism stronger context and improve model performance. We implement them next.
 
 First, construct the function that gets the real and imaginary parts of the rotary embeddings:
 
@@ -178,20 +174,17 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     return freqs_cos, freqs_sin
 ```
 
-- Computing the frequency sequence:
-  - `torch.arange(0, dim, 2)[: (dim // 2)].float()` generates a sequence that starts at 0 with step 2. Its length is half of `dim`.
-  - Dividing each element by `dim` and then taking the reciprocal with respect to `theta` yields a frequency sequence `freqs`. This step generates frequencies suitable for rotary embeddings.
-- Generating the time sequence:
-  - `t = torch.arange(end, device=freqs.device)` generates a sequence from `0` to `end`, of length `end`. `end` is usually the maximum sequence length.
-- Computing the outer product of the frequencies:
-  - `freqs = torch.outer(t, freqs).float()` computes the outer product of the time sequence `t` and the frequency sequence `freqs`. The result is a 2D matrix `freqs`. Each row is an element of `t` multiplied by an element of `freqs`.
-- Computing the real and imaginary parts:
-  - `freqs_cos = torch.cos(freqs)` takes the cosine of the frequency matrix `freqs`. This step gives the real part of the rotary embeddings.
-  - `freqs_sin = torch.sin(freqs)` takes the sine of the frequency matrix `freqs`. This step gives the imaginary part of the rotary embeddings.
+The code does this:
+- `torch.arange(0, dim, 2)[: (dim // 2)].float()` generates a sequence starting at 0 with step 2. Its length is half of `dim`.
+- Dividing each element by `dim` and taking the reciprocal with `theta` as the exponent yields a frequency sequence `freqs`.
+- `t = torch.arange(end, device=freqs.device)` generates a sequence from 0 to `end`, of length `end`. `end` is usually the maximum sequence length.
+- `freqs = torch.outer(t, freqs).float()` computes the outer product of `t` and `freqs`. The result is a 2D matrix. Each row is an element of `t` multiplied by an element of `freqs`.
+- `freqs_cos = torch.cos(freqs)` takes the cosine of `freqs`. This gives the real part.
+- `freqs_sin = torch.sin(freqs)` takes the sine of `freqs`. This gives the imaginary part.
 
-Finally, the function returns two matrices, `freqs_cos` and `freqs_sin`. They hold the real and imaginary parts of the rotary embeddings. Later computations use them.
+Finally, the function returns `freqs_cos` and `freqs_sin`. They hold the real and imaginary parts of the rotary embeddings. Later computations use them.
 
-Next, build the `reshape_for_broadcast` function for adjustment of tensor shapes. This function adjusts the shape of `freqs_cis` so that it aligns with the dimensions of `x` during broadcasting. The alignment allows correct tensor operations.
+Next, build the `reshape_for_broadcast` function. It adjusts the shape of `freqs_cis` so it aligns with `x` during broadcasting. This alignment allows correct tensor operations.
 
 ```python
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
@@ -242,7 +235,7 @@ def apply_rotary_emb(
     return xq_out.type_as(xq), xk_out.type_as(xk)
 ```
 
-Here is code that tests the `apply_rotary_emb` function. You can also add breakpoints in the code to inspect the computed results at each step.
+Test the `apply_rotary_emb` function with this code. You can add breakpoints to inspect results at each step.
 
 ```python
 xq = torch.randn(1, 50, 6, 48) # bs, seq_len, dim//n_head, n_head_dim
@@ -356,7 +349,7 @@ class Attention(nn.Module):
         return output
 ```
 
-Likewise, test the attention module with this code. The final output shape is `torch.Size([1, 50, 768])`, the same as our input shape. This match shows that the module works correctly.
+Test the attention module with this code. The output shape is `torch.Size([1, 50, 768])`. It matches the input shape. This match shows the module works correctly.
 
 ```python
 # Create an Attention instance
@@ -415,9 +408,9 @@ class MLP(nn.Module):
         return self.dropout(self.w2(F.silu(self.w1(x)) * self.w3(x)))
 ```
 
-Now inspect the `forward` function. The input `x` passes through the first linear layer `self.w1` and the `SILU` activation function. The result is multiplied by the output of the input `x` through the third linear layer `self.w3`. Finally, the result passes through the second linear layer `self.w2` and the `dropout` layer. This sequence produces the final output.
+Inspect the `forward` function. Input `x` passes through the first linear layer `self.w1` and the SiLU activation function. The result multiplies by the output of input `x` through the third linear layer `self.w3`. Finally, the result passes through the second linear layer `self.w2` and the dropout layer. This sequence produces the final output.
 
-Likewise, test the `LLaMAMLP` module with this code. The final output shape is `torch.Size([1, 50, 768])`, the same as our input shape. This match shows that the module works correctly.
+Test the `MLP` module with this code. The output shape is `torch.Size([1, 50, 768])`. It matches the input shape. This match shows the module works correctly.
 
 ```python
 # Create an MLP instance
@@ -475,7 +468,7 @@ class DecoderLayer(nn.Module):
 
 The `DecoderLayer` combines the `Attention` module and the `MLP` module we completed above. Together they form a complete `Transformer` module.
 
-Likewise, test the `DecoderLayer` module with this code. The final output shape is `torch.Size([1, 50, 768])`, the same as our input shape. This match shows that the module works correctly.
+Test the `DecoderLayer` module with this code. The output shape is `torch.Size([1, 50, 768])`. It matches the input shape. This match shows the module works correctly.
 
 ```python
 # Create a LLaMADecoderLayer instance
@@ -646,7 +639,7 @@ class Transformer(PreTrainedModel):
         return idx[:, index:] # Return only the generated tokens
 ```
 
-Likewise, test the `Transformer` module with this code. The final output shape is `torch.Size([1, 1, 6144])`, consistent with our input. This match shows that the module works correctly.
+Test the `Transformer` module with this code. The output shape is `torch.Size([1, 1, 6144])`. It matches the input. This match shows the module works correctly.
 
 ```python
 # LLaMA2Model.forward takes two arguments, tokens and targets, where tokens is the input tensor and should be of int type
@@ -668,11 +661,11 @@ torch.Size([1, 1, 6144])
 ```
 ## 5.2 Training a Tokenizer
 
-In natural language processing (NLP), a Tokenizer is a tool that breaks text into smaller units called tokens. These tokens can be words, subwords, characters, or specific symbols. Tokenization is the first step in NLP, and it directly affects the quality of subsequent processing and analysis. Different tokenizer types suit different application scenarios. Below are several common tokenizers and their characteristics.
+A Tokenizer breaks text into smaller units called tokens. Tokens can be words, subwords, characters, or symbols. Tokenization is the first step in natural language processing (NLP). It affects the quality of later processing and analysis. Different tokenizers suit different applications. This section lists common tokenizers and their characteristics.
 
 ### 5.2.1 Word-based Tokenizer
 
-The Word-based Tokenizer is the simplest tokenization method. It splits text into words based on spaces and punctuation. This method is simple and direct. It is easy to implement, and it agrees with human intuition about language. However, it has obvious drawbacks. It cannot handle out-of-vocabulary (OOV) and rare words. It also handles compound words (like "New York") or contractions (like "don't") poorly. In addition, the Word-based Tokenizer faces challenges with different languages, because some languages (such as Chinese and Japanese) have no explicit word separators.
+The Word-based Tokenizer is the simplest tokenization method. It splits text into words using spaces and punctuation. This method is simple and direct. It is easy to implement. It matches human intuition about language. However, it has drawbacks. It cannot handle out-of-vocabulary (OOV) words and rare words. It also handles compound words such as "New York" and contractions such as "don't" poorly. It also faces challenges with some languages. Chinese and Japanese have no explicit word separators.
 
 Example:
 ```
@@ -684,7 +677,7 @@ In this example, the input sentence is split into a series of words and punctuat
 
 ### 5.2.2 Character-based Tokenizer
 
-The Character-based Tokenizer treats every character in the text as an independent token. This method handles text very finely, and it suits typos, OOV words, and new words. Every character is an independent token, so this method captures extremely fine-grained linguistic features. This detail is useful for certain application scenarios, such as generative tasks or tasks that must handle many OOV words. However, this method also makes the token sequence very long. The long sequence increases the computational complexity and training time of the model. Character-level splitting can also lose some word-level semantic information. This loss makes it hard for the model to understand context.
+The Character-based Tokenizer treats every character as an independent token. This method handles text finely. It suits typos, out-of-vocabulary (OOV) words, and new words. Every character is an independent token. This captures fine-grained linguistic features. The detail helps generative tasks and tasks that handle many OOV words. However, this method makes the token sequence very long. The long sequence increases computational complexity and training time. Character-level splitting can also lose word-level semantic information. This loss makes it hard for the model to understand context.
 
 Example:
 ```
@@ -696,11 +689,11 @@ In this example, the word "Hello" is split into individual characters. The token
 
 ### 5.2.3 Subword Tokenizer
 
-The Subword Tokenizer sits between words and characters. It better balances tokenization granularity with the ability to handle OOV words. The key idea of the Subword Tokenizer is to split text into units smaller than words but larger than characters. These units handle unknown words and preserve a certain amount of semantic information. Common subword tokenization methods include BPE, WordPiece, and Unigram.
+The Subword Tokenizer sits between words and characters. It splits text into units smaller than words but larger than characters. These units handle unknown words and keep semantic information. Common subword tokenization methods are BPE, WordPiece, and Unigram.
 
 #### (1) Byte Pair Encoding (BPE)
 
-BPE is a statistics-based method. It builds a subword vocabulary by repeated merge of the most frequent character or character-sequence pairs. This method is simple and efficient. It handles unknown and rare words well, and it keeps the vocabulary small. The BPE merging process is bottom-up. It merges the most frequent character pairs into new subwords. The merge continues until it reaches a predetermined vocabulary size or no more high-frequency character pairs remain.
+BPE is a statistics-based method. It builds a subword vocabulary by repeatedly merging the most frequent character pairs. This method is simple and efficient. It handles unknown and rare words well. It keeps the vocabulary small. The BPE merging process is bottom-up. It merges the most frequent character pairs into new subwords. The merge continues until it reaches a set vocabulary size or no more frequent character pairs remain.
 
 Example:
 ```
@@ -715,7 +708,7 @@ In this example, the word "lower" is split into the subwords "low" and "er". The
 
 #### (2) WordPiece
 
-WordPiece is another subword-based tokenization method, originally used in the BERT model from Google. Like BPE, WordPiece builds its vocabulary to maximize a likelihood function over subword sequences. It pays more attention to language-model optimization when it merges subwords. WordPiece prefers subwords that maximize the probability of the whole sentence. The tokenization result then has a higher probability under a language model.
+WordPiece is a subword-based tokenization method. Google's BERT model first used it. Like BPE, WordPiece builds a vocabulary to maximize a likelihood function over subword sequences. It focuses on language-model optimization when merging subwords. WordPiece prefers subwords that maximize the probability of the whole sentence. The result then has a higher probability under a language model.
 
 Example:
 ```
@@ -723,11 +716,11 @@ Input: "unhappiness"
 Output: ["un", "##happiness"]
 ```
 
-In this example, the word "unhappiness" is split into the subwords "un" and "##happiness". Here "##" indicates that this is a suffix subword. WordPiece then handles compound and derived words better, and it preserves more semantic information.
+In this example, the word "unhappiness" is split into the subwords "un" and "##happiness". Here "##" marks a suffix subword. WordPiece handles compound and derived words better. It preserves more semantic information.
 
 #### (3) Unigram
 
-The Unigram tokenization method is based on a probabilistic model. It splits text by selection of the subwords with the highest probability. Training a language model generates the Unigram vocabulary. The method handles multiple languages and different text types. The Unigram model assigns a probability to each subword, and then it performs the optimal segmentation according to these probabilities.
+The Unigram method is based on a probabilistic model. It splits text by selecting subwords with the highest probability. Training a language model generates the Unigram vocabulary. The method handles multiple languages and text types. The Unigram model assigns a probability to each subword. It then performs the best segmentation according to these probabilities.
 
 Example:
 ```
@@ -740,11 +733,11 @@ Output: ["new", "est"]
 
 In this example, the word "unhappiness" is split into the subwords "un" and "happiness". The word "newest" is split into "new" and "est". This method handles subword segmentation through a probabilistic model. The model makes the segmentation results more consistent with language usage habits.
 
-Each tokenization method has its own application scenarios, advantages, and disadvantages. The right tokenizer is essential to the success of NLP tasks.
+Each tokenization method has its own applications, advantages, and disadvantages. The right tokenizer matters for NLP tasks.
 
 ### 5.2.4 Training a Tokenizer
 
-Here we use the BPE algorithm to train a Subword Tokenizer. BPE is a simple and effective tokenization method. It handles OOV and rare words, and it keeps the vocabulary small. We will use the Hugging Face `tokenizers` library to train a BPE Tokenizer.
+We use the BPE algorithm to train a Subword Tokenizer. BPE is simple and effective. It handles unknown and rare words. It keeps the vocabulary small. We use the Hugging Face `tokenizers` library to train a BPE Tokenizer.
 
 
 #### Step 1: Install and Import Dependencies
@@ -777,7 +770,7 @@ from typing import Generator
 
 Use the same dataset as for pretraining (the Mobvoi Seq Monkey open-source dataset) to train the tokenizer. You can use `code/download_dataset.sh` and `code/deal_dataset.py` to download and preprocess the dataset.
 
-> Note: The dataset is very large, so training can run out of memory. This project is for learning, so we recommend that you split off a small portion of the dataset for training and validation. The author also stored a trained tokenizer in the GitHub repository, and you can use it directly.
+> Note: The dataset is large, so training can run out of memory. This project is for learning. Split off a small portion of the dataset for training and validation. The author stored a trained tokenizer in the GitHub repository. You can use it directly.
 
 ```python
 def read_texts_from_jsonl(file_path: str) -> Generator[str, None, None]:
@@ -799,7 +792,7 @@ def read_texts_from_jsonl(file_path: str) -> Generator[str, None, None]:
 
 #### Step 3: Create the Configuration Files
 
-Before training the BPE Tokenizer, create a complete `Tokenizer` configuration. It includes `tokenizer_config.json` and `special_tokens_map.json`. These files define the `Tokenizer` parameters and special tokens. Training and loading use them. Here the `chat_template` stays consistent with the `Qwen2.5` model.
+Before training the BPE Tokenizer, create a complete `Tokenizer` configuration. It includes `tokenizer_config.json` and `special_tokens_map.json`. These files define the `Tokenizer` parameters and special tokens. Training and loading use them. The `chat_template` stays consistent with the `Qwen2.5` model.
 
 ```python
 def create_tokenizer_config(save_dir: str) -> None:
@@ -849,9 +842,9 @@ def create_tokenizer_config(save_dir: str) -> None:
 
 #### Step 4: Train the BPE Tokenizer
 
-Before training the BPE Tokenizer, define a training function. It trains the Tokenizer and saves the trained files. Use the `Tokenizer` class from the `tokenizers` library to train the BPE Tokenizer.
+Before training, define a training function. It trains the Tokenizer and saves the trained files. Use the `Tokenizer` class from the `tokenizers` library to train the BPE Tokenizer.
 
-When you train the Tokenizer, you configure special tokens such as `<unk>`, `<s>`, `</s>`, `<|im_start|>`, and `<|im_end|>`. These tokens mark unknown words, the start and end of sentences, and the start and end of conversations. They help the model understand text data and improve its generalization and effectiveness.
+When you train the Tokenizer, you configure special tokens such as `<unk>`, `<s>`, `</s>`, `<|im_start|>`, and `<|im_end|>`. These tokens mark unknown words, the start and end of sentences, and the start and end of conversations.
 
 ```python
 def train_tokenizer(data_path: str, save_dir: str, vocab_size: int = 8192) -> None:
@@ -909,7 +902,7 @@ def train_tokenizer(data_path: str, save_dir: str, vocab_size: int = 8192) -> No
 
 #### Step 5: Use the Trained Tokenizer
 
-Use the trained Tokenizer to process text data, for example to encode, decode, and generate conversations. The example below shows how to use the trained Tokenizer to process text data.
+Use the trained Tokenizer to encode, decode, and generate conversations.
 
 ```python
 def eval_tokenizer(tokenizer_path: str) -> None:
@@ -996,15 +989,15 @@ Special tokens preserved: False
 ```
 ## 5.3 Pretraining a Small LLM
 
-The previous chapters covered the model architectures of various large models and how to train a Tokenizer. In this section, we train an 80-million-parameter LLM by hand.
+Previous chapters covered model architectures and Tokenizer training. In this section, we train an 80-million-parameter LLM by hand.
 
 ### 5.3.1 Data Download
 
-First, download the pretraining dataset. We use two open-source datasets. They contain a large amount of Chinese conversation data and can train a dialogue generation model.
+Download the pretraining dataset. We use two open-source datasets. They contain Chinese conversation data. You can train a dialogue generation model with them.
 
-- Mobvoi Seq Monkey open-source dataset: The Mobvoi Seq Monkey general text dataset is a pretraining corpus for large language models. It aggregates and cleans many public data sources. These sources include web pages, encyclopedias, blogs, Q&A, open-source code, books, newspapers and periodicals, patents, textbooks, and exam questions. The total size is roughly 10B tokens.
+- Mobvoi Seq Monkey open-source dataset. A pretraining corpus for large language models. It aggregates and cleans public sources: web pages, encyclopedias, blogs, Q&A, open-source code, books, newspapers and periodicals, patents, textbooks, and exam questions. Total size: roughly 10B tokens.
 
-- BelleGroup: A Chinese dialogue dataset of 3.5 million entries. It contains human-machine dialogues, person-to-person dialogues, and other types of dialogue data. It can train a dialogue generation model.
+- BelleGroup. A Chinese dialogue dataset of 3.5 million entries. It contains human-machine dialogues, person-to-person dialogues, and other dialogue data. It trains a dialogue generation model.
 
 
 ```python
@@ -1062,9 +1055,9 @@ with open('BelleGroup_sft.jsonl', 'a', encoding='utf-8') as sft:
 
 ### 5.3.2 Training the Tokenizer
 
-First, train a Tokenizer for text processing. The Tokenizer converts text into sequences of numbers, so the model can understand and process them. We use the [Mobvoi Seq Monkey open-source dataset](https://www.modelscope.cn/datasets/ddzhu123/seq-monkey/files). It contains a large amount of Chinese text data and can train the Tokenizer.
+Train a Tokenizer for text processing. The Tokenizer converts text into number sequences, so the model can understand them. We use the [Mobvoi Seq Monkey open-source dataset](https://www.modelscope.cn/datasets/ddzhu123/seq-monkey/files). It contains Chinese text data for training the Tokenizer.
 
-> Note: The dataset is large, so training on your own local computer is slow. We provide a Tokenizer that is already trained, and you can use it directly. If you want to train one yourself, use the code below.
+> Note: The dataset is large, so local training is slow. We provide a trained Tokenizer you can use directly. To train one yourself, use the code below.
 
 ```bash
 python code/train_tokenizer.py
@@ -1263,7 +1256,7 @@ if __name__ == '__main__':
     main()
 ```
 
-After training, use `eval_tokenizer()` to test the Tokenizer and make sure that it works. The function first loads the trained Tokenizer. It then tests the basic properties, the chat template, encoding/decoding, and other functions. These tests verify the Tokenizer and confirm that it works. The correct output is:
+After training, use `eval_tokenizer()` to test the Tokenizer. It loads the trained Tokenizer. It then tests the basic properties, the chat template, encoding/decoding, and other functions. These tests make sure that the Tokenizer works. The correct output is:
 
 OUT:
 ```
@@ -1300,7 +1293,7 @@ Special tokens preserved: False
 
 #### PretrainDataset
 
-Before the data enters the model, some processing is required. This processing converts the text data into Tokens that the model can understand. Use the Dataset class of PyTorch to load the dataset. Define a `PretrainDataset` class to load the preprocessed dataset. It inherits from `torch.utils.data.IterableDataset`. This inheritance allows flexible and efficient processing of the data.
+Before data enters the model, process it. This processing converts text into tokens the model can understand. Use the PyTorch `Dataset` class to load the dataset. Define a `PretrainDataset` class to load the preprocessed dataset. It inherits from `torch.utils.data.IterableDataset`. This inheritance allows flexible and efficient data processing.
 
 ```python
 from torch.utils.data import Dataset
@@ -1344,7 +1337,7 @@ class PretrainDataset(Dataset):
         return torch.from_numpy(X), torch.from_numpy(Y), torch.from_numpy(loss_mask)
 ```
 
-The code above and Figure 5.3 show how the `Pretrain Dataset` works. It converts `text` into `input_id` via the `tokenizer`. It then splits `input_id` into `X` and `Y`. `X` holds the first n-1 elements of `input_id`, and `Y` holds the last n-1 elements. The `loss_mask` marks the positions where the loss is computed and the positions that are skipped.
+The code and Figure 5.3 show how `PretrainDataset` works. It converts `text` into `input_id` using the `tokenizer`. It then splits `input_id` into `X` and `Y`. `X` holds the first n-1 elements of `input_id`. `Y` holds the last n-1 elements. The `loss_mask` marks positions where the loss is computed and positions that are skipped.
 
 <div align='center'>
     <img src="/images/5-images/pretrain_dataset.webp" alt="Figure 5.3 Pretraining Loss Computation" width="1030" height="464" loading="lazy" decoding="async" />
@@ -1361,7 +1354,7 @@ The example in the figure shows the processing when `max_length=9`:
 
 #### SFTDataset
 
-The `SFTDataset` is a multi-turn dialogue dataset. The goal is to teach the model how to conduct multi-turn conversations. At this stage, the input is the previous turn of the conversation, and the output is the current turn.
+The `SFTDataset` is a multi-turn dialogue dataset. It teaches the model to conduct multi-turn conversations. At this stage, the input is the previous turn, and the output is the current turn.
 
 ```python
 class SFTDataset(Dataset):
@@ -1438,21 +1431,21 @@ class SFTDataset(Dataset):
         return torch.from_numpy(X), torch.from_numpy(Y), torch.from_numpy(loss_mask)
 ```
 
-We use a multi-turn dialogue dataset in the SFT stage. The code must therefore distinguish the positions where the loss is computed from the positions that are skipped. The code above uses a `generate_loss_mask` function to generate the `loss_mask`. The rule is simple. At `|<im_start|>assistant\n` the loss computation starts, and it continues until `|<im_end|>`. This rule makes sure that the model computes the loss only on the dialogue content of the current turn during the SFT stage. Figure 5.4 shows this behavior.
+We use a multi-turn dialogue dataset in the SFT stage. The code must distinguish loss positions from skipped positions. It uses a `generate_loss_mask` function to generate the `loss_mask`. The rule is simple. At `|<im_start|>assistant\n` the loss computation starts, and it continues until `|<im_end|>`. This rule makes the model compute loss only on the current turn's dialogue content during SFT. Figure 5.4 shows this behavior.
 
 <div align='center'>
     <img src="/images/5-images/sftdataset.webp" alt="Figure 5.4 SFT Loss Computation" width="1029" height="451" loading="lazy" decoding="async" />
     <p>Figure 5.4 SFT Loss Computation</p>
 </div>
 
-The `X` and `Y` of the SFT Dataset match those of the Pretrain Dataset. The only difference is the `loss_mask`, which marks the positions where the loss is computed and the positions that are skipped. In the figure, the blue small squares in `Input ids` are the AI's answers, so the model must learn them. In the `loss_mask`, the positions of the blue small squares are yellow and the other positions are gray. In the code, positions marked 1 in the `loss_mask` have the loss computed, and positions marked 0 do not.
+The `X` and `Y` of `SFTDataset` match those of `PretrainDataset`. The only difference is the `loss_mask`, which marks positions where the loss is computed and positions that are skipped. In the figure, the blue small squares in `Input ids` are the AI's answers, so the model must learn them. In the `loss_mask`, blue squares are yellow and other squares are gray. In the code, positions marked 1 in the `loss_mask` have the loss computed. Positions marked 0 do not.
 
 
 ### 5.3.4 Pretraining
 
-When the data preprocessing is done, training can start. The model is a Decoder-only Transformer with the same structure as LLaMA2, implemented in PyTorch. The relevant code is in the `code/k_model.py` file and is not repeated here. The source code contains detailed Chinese comments. The previous sections also introduce it in detail.
+After data preprocessing, training starts. The model is a Decoder-only Transformer with the same structure as LLaMA2, implemented in PyTorch. The relevant code is in `code/k_model.py` and is not repeated here. The source code contains detailed Chinese comments. Previous sections introduce it in detail.
 
-One part of the model deserves close attention: how a generative model implements token generation. See the `generate` method in the `Transforerm` class in the `k_model.py` file.
+One part deserves close attention: how a generative model implements token generation. See the `generate` method in the `Transforerm` class in `k_model.py`.
 
 ```python
 @torch.inference_mode()
@@ -1493,11 +1486,11 @@ One part of the model deserves close attention: how a generative model implement
 
 ```
 
-In the `generate` method, the code obtains the `logits` at the last position in the sequence. It then generates a new `token` from these `logits` and appends the `token` to the sequence. The model repeats this step for the next `token`. This iterative process generates complete text.
+In the `generate` method, the code obtains `logits` at the last position in the sequence. It then generates a new `token` from these `logits` and appends the `token` to the sequence. The model repeats this step for the next `token`. This iterative process generates complete text.
 
-Next comes the most important part: training the model.
+Next comes training the model.
 
-> Note: When you use the code below to train the model, set the `--data_path` argument to the path of the preprocessed dataset, for example `--data_path seq_monkey_datawhale.jsonl`. Also specify which GPUs to train on, for example `--gpus 0,1`.
+> Note: When you use the code below to train the model, set the `--data_path` argument to the path of the preprocessed dataset, for example `--data_path seq_monkey_datawhale.jsonl`. Specify which GPUs to train on, for example `--gpus 0,1`.
 
 ```python
 def get_lr(it, all):
@@ -2028,13 +2021,13 @@ if __name__ == "__main__":
 
 ### 5.3.6 Generating Text with the Model
 
-After training completes, the code writes a model file under the `output` directory. That file holds the trained model. Run this command to generate text.
+After training, the code writes a model file under the `output` directory. That file holds the trained model. Run this command to generate text.
 
 ```bash
 python model_sample.py
 ```
 
-Read the code in the `model_sample.py` file. This file defines a `TextGenerator` class that generates text.
+Read the code in `model_sample.py`. This file defines a `TextGenerator` class that generates text.
 
 ```python
 import os

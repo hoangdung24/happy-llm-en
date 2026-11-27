@@ -1,3 +1,6 @@
+/* KaTeX styles for math rendered by remark-math + rehype-katex. */
+@import 'katex/dist/katex.min.css';
+
 /* Mulish, Latin subset only.
    Referenced directly from the Fontsource package so the build ships one
    ~30KB variable file instead of every subset Fontsource offers. */
@@ -32,6 +35,13 @@
 .sl-markdown-content div[align='center'] > img,
 .sl-markdown-content img {
 	height: auto;
+	max-width: 100%;
+}
+
+/* Prevent KaTeX math from overflowing its container. Wide expressions
+   (matrices, long equations) scroll horizontally instead of clipping. */
+.katex-display {
+	overflow-x: auto;
 	max-width: 100%;
 }
 

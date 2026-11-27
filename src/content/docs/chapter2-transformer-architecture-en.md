@@ -99,7 +99,7 @@ $$
 Here, K is the matrix formed by stacking the word vectors of all the Keys. By the definition of matrix multiplication, x is the dot product of q with each k. The x we now get reflects the similarity between the Query and each Key. We then pass it through a Softmax layer. This converts it into weights that sum to 1:
 
 $$
-\text{softmax}(x)_i = \frac{e^{xi}}{\sum_{j}e^{x_j}}
+\text{softmax}(x)_i = \frac{e^{x_i}}{\sum_{j}e^{x_j}}
 $$
 
 The resulting vector reflects the similarity between the Query and each Key. At the same time, the weights sum to 1. These are our attention scores. Finally, we multiply the attention scores by the value vectors. From the process above, we can get the basic formula of attention computation:
@@ -234,9 +234,10 @@ The upper and lower parts show the results of two attention heads. Both heads co
 In fact, the so-called multi-head attention mechanism does this. It performs multiple groups of self-attention processing on the original input sequence. It then concatenates the self-attention results of each group. It passes them through a linear layer to get the final output. We can express it formally as:
 
 $$
-\mathrm{MultiHead}(Q, K, V) = \mathrm{Concat}(\mathrm{head_1}, ...,
-\mathrm{head_h})W^O    \\
-    \text{where}~\mathrm{head_i} = \mathrm{Attention}(QW^Q_i, KW^K_i, VW^V_i)
+\begin{aligned}
+\mathrm{MultiHead}(Q, K, V) &= \mathrm{Concat}(\mathrm{head_1}, ..., \mathrm{head_h})W^O \\
+\text{where}~\mathrm{head_i} &= \mathrm{Attention}(QW^Q_i, KW^K_i, VW^V_i)
+\end{aligned}
 $$
 
 Its most straightforward code implementation is not complicated. n heads means n groups of 3 parameter matrices. Each group performs the same attention computation. But the parameter matrices are different. Backpropagation therefore yields different attention results. We then concatenate the n results and output them.
@@ -612,8 +613,10 @@ However, the analysis of the attention mechanism above shows one property. In th
 Positional encoding means encoding each token according to its relative position in the sequence. Then the mechanism adds the positional encoding to the word vector encoding. There are many ways to perform positional encoding. The Transformer uses sine and cosine functions for positional encoding (absolute positional encoding, Sinusoidal). The encoding is as follows:
 
 $$
-PE(pos, 2i) = sin(pos/10000^{2i/d_{model}})\\
-PE(pos, 2i+1) = cos(pos/10000^{2i/d_{model}})
+\begin{aligned}
+PE(pos, 2i) &= \sin(pos/10000^{2i/d_{model}})\\
+PE(pos, 2i+1) &= \cos(pos/10000^{2i/d_{model}})
+\end{aligned}
 $$
 
 In the formula above, pos is the token's position in the sentence. The values 2i and 2i+1 indicate whether the positional encoding vector's dimension index is odd or even. The formula above shows that the Transformer uses different functions for encoding in odd and even dimensions.
